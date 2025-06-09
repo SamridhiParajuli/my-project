@@ -6,6 +6,7 @@ from typing import List
 from ..database.database import get_db
 from ..models.reflected_models import users  # Use reflected table
 from ..schemas import schemas
+from ..utils.security import get_password_hash
 
 router = APIRouter(
     prefix="/users",
@@ -26,7 +27,7 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     # Create a new user matching your database schema
     new_user = {
         "username": user.username,
-        "password_hash": user.password,  # In production, hash this password!
+        "password_hash": get_password_hash(user.password),  # In production, hash this password!
         "user_type": user.user_type,
         "employee_id": user.employee_id,
         "department_id": user.department_id,
