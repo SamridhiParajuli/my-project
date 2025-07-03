@@ -7,7 +7,10 @@ from datetime import datetime
 from ..database.database import get_db
 from ..models.reflected_models import tasks
 from ..schemas import schemas
-from ..routers.auth import get_current_active_user
+from ..utils.auth_utils import get_current_active_user
+from ..utils.roles import admin_only, manager_or_admin
+from ..utils.error_handling import raise_api_error
+from ..utils.db_helpers import row_to_dict, rows_to_list
 
 router = APIRouter(
     prefix="/tasks",
@@ -21,6 +24,7 @@ def get_tasks(
     department_id: Optional[int] = None,
     assigned_to: Optional[int] = None,
     status: Optional[str] = None,
+    is_urgent: Optional[bool] = None,
     sort: str = "created_at",
     order: str = "desc",
     search: Optional[str] = None,
@@ -41,6 +45,9 @@ def get_tasks(
     if status:
         query = query.where(tasks.c.status == status)
         count_query = count_query.where(tasks.c.status == status)
+    if is_urgent is not None:
+        query = query.where(tasks.c.is_urgent == is_urgent)
+        count_query = count_query.where(tasks.c.is_urgent == is_urgent)
     
     # Add search if provided
     if search:
@@ -68,7 +75,7 @@ def get_tasks(
     
     # Execute query
     result = db.execute(query).fetchall()
-    tasks_list = [dict(row._mapping) for row in result]
+    tasks_list = rows_to_list(result)
     
     # Return with pagination metadata
     return {
@@ -94,8 +101,8 @@ def get_task(
     query = select(tasks).where(tasks.c.id == task_id)
     result = db.execute(query).fetchone()
     if result is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return dict(result._mapping)
+        raise_api_error(404, "Task not found")
+    return row_to_dict(result)
 
 @router.post("/", response_model=schemas.Task)
 def create_task(
@@ -123,7 +130,7 @@ def create_task(
     task_id = result.inserted_primary_key[0]
     query = select(tasks).where(tasks.c.id == task_id)
     result = db.execute(query).fetchone()
-    created_task = dict(result._mapping)
+    created_task = row_to_dict(result)
     return created_task
 
 @router.put("/{task_id}", response_model=schemas.Task)
@@ -137,7 +144,19 @@ def update_task(
     query = select(tasks).where(tasks.c.id == task_id)
     existing_task = db.execute(query).fetchone()
     if existing_task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise_api_error(404, "Task not found")
+    
+    # Check if current user is authorized to update this task
+    # Either the task is assigned to them, they assigned it, or they're a manager/admin
+    existing_task_dict = row_to_dict(existing_task)
+    is_task_owner = (
+        existing_task_dict["assigned_to"] == current_user["id"] or
+        existing_task_dict["assigned_by"] == current_user["id"] or
+        current_user["role"] in ["admin", "manager"]
+    )
+    
+    if not is_task_owner:
+        raise_api_error(403, "You do not have permission to update this task")
     
     # Prepare update values (only include fields that were provided)
     update_values = {}
@@ -167,7 +186,7 @@ def update_task(
     # Fetch updated task
     query = select(tasks).where(tasks.c.id == task_id)
     result = db.execute(query).fetchone()
-    updated_task = dict(result._mapping)
+    updated_task = row_to_dict(result)
     return updated_task
 
 @router.patch("/{task_id}/status", response_model=schemas.Task)
@@ -181,11 +200,23 @@ def update_task_status(
     query = select(tasks).where(tasks.c.id == task_id)
     existing_task = db.execute(query).fetchone()
     if existing_task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise_api_error(404, "Task not found")
+    
+    existing_task_dict = row_to_dict(existing_task)
+    
+    # Check if current user is authorized to update this task
+    is_task_owner = (
+        existing_task_dict["assigned_to"] == current_user["id"] or
+        existing_task_dict["assigned_by"] == current_user["id"] or
+        current_user["role"] in ["admin", "manager"]
+    )
+    
+    if not is_task_owner:
+        raise_api_error(403, "You do not have permission to update this task")
     
     # Validate status
     if "status" not in status_update:
-        raise HTTPException(status_code=400, detail="Status field is required")
+        raise_api_error(400, "Status field is required")
     
     # Update status
     update_values = {"status": status_update.get("status")}
@@ -197,7 +228,7 @@ def update_task_status(
     else:
         update_values["is_completed"] = False
         # If task was previously completed and now it's not, reset completed_at
-        if dict(existing_task._mapping)["status"] == "completed":
+        if existing_task_dict["status"] == "completed":
             update_values["completed_at"] = None
     
     update_stmt = update(tasks).where(tasks.c.id == task_id).values(**update_values)
@@ -207,7 +238,7 @@ def update_task_status(
     # Fetch updated task
     query = select(tasks).where(tasks.c.id == task_id)
     result = db.execute(query).fetchone()
-    updated_task = dict(result._mapping)
+    updated_task = row_to_dict(result)
     return updated_task
 
 @router.delete("/{task_id}", response_model=dict)
@@ -220,7 +251,19 @@ def delete_task(
     query = select(tasks).where(tasks.c.id == task_id)
     existing_task = db.execute(query).fetchone()
     if existing_task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise_api_error(404, "Task not found")
+    
+    existing_task_dict = row_to_dict(existing_task)
+    
+    # Check if current user is authorized to delete this task
+    # Only the user who assigned the task or a manager/admin can delete it
+    is_authorized = (
+        existing_task_dict["assigned_by"] == current_user["id"] or
+        current_user["role"] in ["admin", "manager"]
+    )
+    
+    if not is_authorized:
+        raise_api_error(403, "You do not have permission to delete this task")
     
     # Delete task
     delete_stmt = delete(tasks).where(tasks.c.id == task_id)

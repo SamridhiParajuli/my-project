@@ -1,7 +1,18 @@
 # app/schemas/schemas.py
 from pydantic import BaseModel, EmailStr
-from typing import Optional, List, Union, Dict, Any
+from typing import Optional, List, Union, Dict, Any, Generic, TypeVar
 from datetime import date, datetime
+
+# Pagination schemas
+class PaginationMeta(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    has_more: bool
+
+class SortInfo(BaseModel):
+    field: str
+    order: str
 
 # User Schemas
 class UserBase(BaseModel):
@@ -357,3 +368,9 @@ class AnnouncementRead(BaseModel):
     
     class Config:
         from_attributes = True
+
+# Pagination response model for any type of item
+class PaginatedResponse(BaseModel):
+    items: List[Any]
+    pagination: PaginationMeta
+    sort: SortInfo

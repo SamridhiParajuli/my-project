@@ -1,41 +1,64 @@
 # app/routers/announcements.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import select, insert, update, delete,func, or_
+from sqlalchemy import select, insert, update, delete, func, or_
 from typing import List, Optional, Dict
 from datetime import datetime, timedelta
 from ..database.database import get_db
 from ..models.reflected_models import announcements, announcement_reads, employees, departments
 from ..schemas import schemas
-from ..routers.auth import get_current_active_user
+from ..utils.auth_utils import get_current_active_user
+from ..utils.roles import admin_only, manager_or_admin
+from ..utils.error_handling import raise_api_error
+from ..utils.db_helpers import row_to_dict, rows_to_list
 
 router = APIRouter(
     prefix="/announcements",
     tags=["announcements"],
 )
 
-@router.get("/", response_model=List[schemas.Announcement])
+@router.get("/", response_model=Dict)
 def get_announcements(
     skip: int = 0, 
-    limit: int = 100, 
+    limit: int = 20, 
     is_active: Optional[bool] = None,
     target_department: Optional[int] = None,
     announcement_type: Optional[str] = None,
     priority: Optional[str] = None,
+    sort: str = "created_at",
+    order: str = "desc",
+    search: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_active_user)
 ):
+    # Base query
     query = select(announcements)
+    count_query = select(func.count()).select_from(announcements)
     
     # Apply filters if provided
     if is_active is not None:
         query = query.where(announcements.c.is_active == is_active)
+        count_query = count_query.where(announcements.c.is_active == is_active)
     if target_department:
         query = query.where(announcements.c.target_department == target_department)
+        count_query = count_query.where(announcements.c.target_department == target_department)
     if announcement_type:
         query = query.where(announcements.c.announcement_type == announcement_type)
+        count_query = count_query.where(announcements.c.announcement_type == announcement_type)
     if priority:
         query = query.where(announcements.c.priority == priority)
+        count_query = count_query.where(announcements.c.priority == priority)
+    
+    # Add search if provided
+    if search:
+        search_pattern = f"%{search}%"
+        search_filter = or_(
+            announcements.c.title.ilike(search_pattern),
+            announcements.c.message.ilike(search_pattern),
+            announcements.c.announcement_type.ilike(search_pattern)
+        )
+        query = query.where(search_filter)
+        count_query = count_query.where(search_filter)
     
     # Only return non-expired announcements or ones with no expiration
     current_time = datetime.now()
@@ -44,10 +67,137 @@ def get_announcements(
         (announcements.c.expires_at.is_(None))
     )
     
+    # Add sorting
+    if hasattr(announcements.c, sort):
+        sort_column = getattr(announcements.c, sort)
+        if order.lower() == "asc":
+            query = query.order_by(sort_column.asc())
+        else:
+            query = query.order_by(sort_column.desc())
+    
+    # Get total count for pagination
+    total_count = db.execute(count_query).scalar()
+    
+    # Apply pagination
     query = query.offset(skip).limit(limit)
+    
+    # Execute query
     result = db.execute(query).fetchall()
-    announcements_list = [dict(row._mapping) for row in result]
-    return announcements_list
+    announcements_list = rows_to_list(result)
+    
+    # Return with pagination metadata
+    return {
+        "items": announcements_list,
+        "pagination": {
+            "total": total_count,
+            "limit": limit,
+            "offset": skip,
+            "has_more": (skip + limit) < total_count
+        },
+        "sort": {
+            "field": sort,
+            "order": order
+        }
+    }
+
+
+@router.get("/stats", response_model=Dict)
+def get_announcement_read_stats(
+    skip: int = 0, 
+    limit: int = 20,
+    sort: str = "created_at",
+    order: str = "desc", 
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(manager_or_admin)  # Only managers or admins can view stats
+):
+    # Base query for active announcements
+    announcements_query = select(announcements).where(announcements.c.is_active == True)
+    count_query = select(func.count()).select_from(announcements).where(announcements.c.is_active == True)
+    
+    # Add sorting
+    if hasattr(announcements.c, sort):
+        sort_column = getattr(announcements.c, sort)
+        if order.lower() == "asc":
+            announcements_query = announcements_query.order_by(sort_column.asc())
+        else:
+            announcements_query = announcements_query.order_by(sort_column.desc())
+    
+    # Get total count for pagination
+    total_count = db.execute(count_query).scalar()
+    
+    # Apply pagination
+    announcements_query = announcements_query.offset(skip).limit(limit)
+    
+    # Execute query
+    all_announcements = db.execute(announcements_query).fetchall()
+    all_announcements = rows_to_list(all_announcements)
+    
+    stats = []
+    
+    for announcement in all_announcements:
+        # Count total reads for this announcement
+        reads_query = select(func.count()).select_from(announcement_reads).where(
+            announcement_reads.c.announcement_id == announcement["id"]
+        )
+        total_reads = db.execute(reads_query).scalar() or 0
+        
+        # Count total employees who should read this announcement
+        employees_query = select(func.count()).select_from(employees)
+        
+        # Filter by department if announcement targets a specific department
+        if announcement["target_department"]:
+            employees_query = employees_query.where(employees.c.department_id == announcement["target_department"])
+        
+        # Filter by position/role if announcement targets specific roles
+        if announcement["target_roles"]:
+            from sqlalchemy import or_
+            role_conditions = []
+            for role in announcement["target_roles"]:
+                role_conditions.append(employees.c.position == role)
+            
+            if role_conditions:
+                employees_query = employees_query.where(or_(*role_conditions))
+        
+        total_employees_count = db.execute(employees_query).scalar() or 0
+        
+        # Calculate read percentage
+        read_percentage = 0
+        if total_employees_count > 0:
+            read_percentage = (total_reads / total_employees_count) * 100
+        
+        # Get creator name
+        creator_query = select(employees).where(employees.c.id == announcement["created_by"])
+        creator = db.execute(creator_query).fetchone()
+        creator_name = None
+        if creator:
+            creator = row_to_dict(creator)
+            creator_name = f"{creator['first_name']} {creator['last_name']}"
+        
+        stats.append({
+            "announcement_id": announcement["id"],
+            "title": announcement["title"],
+            "created_at": announcement["created_at"],
+            "created_by": announcement["created_by"],
+            "creator_name": creator_name,
+            "expires_at": announcement["expires_at"],
+            "total_reads": total_reads,
+            "total_employees": total_employees_count,
+            "read_percentage": read_percentage
+        })
+    
+    return {
+        "items": stats,
+        "pagination": {
+            "total": total_count,
+            "limit": limit,
+            "offset": skip,
+            "has_more": (skip + limit) < total_count
+        },
+        "sort": {
+            "field": sort,
+            "order": order
+        }
+    }
 
 @router.get("/{announcement_id}", response_model=schemas.Announcement)
 def get_announcement(
@@ -58,14 +208,14 @@ def get_announcement(
     query = select(announcements).where(announcements.c.id == announcement_id)
     result = db.execute(query).fetchone()
     if result is None:
-        raise HTTPException(status_code=404, detail="Announcement not found")
-    return dict(result._mapping)
+        raise_api_error(404, "Announcement not found")
+    return row_to_dict(result)
 
 @router.post("/", response_model=schemas.Announcement)
 def create_announcement(
     announcement_data: schemas.AnnouncementCreate, 
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_active_user)
+    current_user: dict = Depends(manager_or_admin)  # Only managers or admins can create announcements
 ):
     new_announcement = {
         "title": announcement_data.title,
@@ -86,7 +236,7 @@ def create_announcement(
     announcement_id = result.inserted_primary_key[0]
     query = select(announcements).where(announcements.c.id == announcement_id)
     result = db.execute(query).fetchone()
-    created_announcement = dict(result._mapping)
+    created_announcement = row_to_dict(result)
     return created_announcement
 
 @router.put("/{announcement_id}", response_model=schemas.Announcement)
@@ -94,13 +244,13 @@ def update_announcement(
     announcement_id: int, 
     announcement_data: dict, 
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_active_user)
+    current_user: dict = Depends(manager_or_admin)  # Only managers or admins can update announcements
 ):
     # Check if announcement exists
     query = select(announcements).where(announcements.c.id == announcement_id)
     existing_announcement = db.execute(query).fetchone()
     if existing_announcement is None:
-        raise HTTPException(status_code=404, detail="Announcement not found")
+        raise_api_error(404, "Announcement not found")
     
     # Prepare update values (only include fields that were provided)
     update_values = {}
@@ -116,20 +266,20 @@ def update_announcement(
     # Fetch updated announcement
     query = select(announcements).where(announcements.c.id == announcement_id)
     result = db.execute(query).fetchone()
-    updated_announcement = dict(result._mapping)
+    updated_announcement = row_to_dict(result)
     return updated_announcement
 
 @router.delete("/{announcement_id}", response_model=dict)
 def delete_announcement(
     announcement_id: int, 
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_active_user)
+    current_user: dict = Depends(admin_only)  # Only admins can delete announcements
 ):
     # Check if announcement exists
     query = select(announcements).where(announcements.c.id == announcement_id)
     existing_announcement = db.execute(query).fetchone()
     if existing_announcement is None:
-        raise HTTPException(status_code=404, detail="Announcement not found")
+        raise_api_error(404, "Announcement not found")
     
     # Delete all reads for this announcement
     delete_reads_stmt = delete(announcement_reads).where(announcement_reads.c.announcement_id == announcement_id)
@@ -152,7 +302,7 @@ def mark_announcement_as_read(
     query = select(announcements).where(announcements.c.id == announcement_id)
     existing_announcement = db.execute(query).fetchone()
     if existing_announcement is None:
-        raise HTTPException(status_code=404, detail="Announcement not found")
+        raise_api_error(404, "Announcement not found")
     
     # Check if this employee has already read this announcement
     read_query = select(announcement_reads).where(
@@ -184,15 +334,15 @@ def get_unread_announcements(
     employee_id = current_user["employee_id"]
     
     if not employee_id:
-        raise HTTPException(status_code=400, detail="Current user is not associated with an employee")
+        raise_api_error(400, "Current user is not associated with an employee")
     
     employee_query = select(employees).where(employees.c.id == employee_id)
     employee = db.execute(employee_query).fetchone()
     
     if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found")
+        raise_api_error(404, "Employee not found")
     
-    employee = dict(employee._mapping)
+    employee = row_to_dict(employee)
     
     # Get all active announcements that are relevant to this employee
     # (either targeted to their department, or not targeted to any department)
@@ -216,37 +366,38 @@ def get_unread_announcements(
         )
     
     all_announcements = db.execute(announcements_query).fetchall()
+    all_announcements = rows_to_list(all_announcements)
     
     # Get all announcements that this employee has already read
     read_query = select(announcement_reads).where(announcement_reads.c.employee_id == employee_id)
     read_announcements = db.execute(read_query).fetchall()
+    read_announcements = rows_to_list(read_announcements)
     
     # Create a set of IDs of read announcements for quick lookup
-    read_announcement_ids = {dict(read._mapping)["announcement_id"] for read in read_announcements}
+    read_announcement_ids = {read["announcement_id"] for read in read_announcements}
     
     # Filter out announcements that have been read
     unread_announcements = []
     for announcement in all_announcements:
-        announcement_dict = dict(announcement._mapping)
-        if announcement_dict["id"] not in read_announcement_ids:
+        if announcement["id"] not in read_announcement_ids:
             # Get the creator's name
-            creator_query = select(employees).where(employees.c.id == announcement_dict["created_by"])
+            creator_query = select(employees).where(employees.c.id == announcement["created_by"])
             creator = db.execute(creator_query).fetchone()
             
             if creator:
-                creator_dict = dict(creator._mapping)
-                announcement_dict["creator_name"] = f"{creator_dict['first_name']} {creator_dict['last_name']}"
+                creator = row_to_dict(creator)
+                announcement["creator_name"] = f"{creator['first_name']} {creator['last_name']}"
             
             # Get the target department name if applicable
-            if announcement_dict["target_department"]:
-                dept_query = select(departments).where(departments.c.id == announcement_dict["target_department"])
+            if announcement["target_department"]:
+                dept_query = select(departments).where(departments.c.id == announcement["target_department"])
                 dept = db.execute(dept_query).fetchone()
                 
                 if dept:
-                    dept_dict = dict(dept._mapping)
-                    announcement_dict["target_department_name"] = dept_dict["name"]
+                    dept = row_to_dict(dept)
+                    announcement["target_department_name"] = dept["name"]
             
-            unread_announcements.append(announcement_dict)
+            unread_announcements.append(announcement)
     
     # Sort by priority and then by creation date (newest first)
     priority_order = {"high": 0, "normal": 1, "low": 2}
@@ -258,72 +409,3 @@ def get_unread_announcements(
     )
     
     return unread_announcements
-
-@router.get("/stats", response_model=List[dict])
-def get_announcement_read_stats(
-    skip: int = 0, 
-    limit: int = 100, 
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_active_user)
-):
-    # Get all active announcements
-    announcements_query = select(announcements).where(announcements.c.is_active == True).offset(skip).limit(limit)
-    all_announcements = db.execute(announcements_query).fetchall()
-    
-    stats = []
-    
-    for announcement in all_announcements:
-        announcement_dict = dict(announcement._mapping)
-        
-        # Count total reads for this announcement
-        reads_query = select(announcement_reads).where(announcement_reads.c.announcement_id == announcement_dict["id"])
-        reads = db.execute(reads_query).fetchall()
-        
-        total_reads = len(reads)
-        
-        # Count total employees who should read this announcement
-        employees_query = select(employees)
-        
-        # Filter by department if announcement targets a specific department
-        if announcement_dict["target_department"]:
-            employees_query = employees_query.where(employees.c.department_id == announcement_dict["target_department"])
-        
-        # Filter by position/role if announcement targets specific roles
-        if announcement_dict["target_roles"]:
-            from sqlalchemy import or_
-            role_conditions = []
-            for role in announcement_dict["target_roles"]:
-                role_conditions.append(employees.c.position == role)
-            
-            if role_conditions:
-                employees_query = employees_query.where(or_(*role_conditions))
-        
-        total_employees = db.execute(employees_query).fetchall()
-        total_employees_count = len(total_employees)
-        
-        # Calculate read percentage
-        read_percentage = 0
-        if total_employees_count > 0:
-            read_percentage = (total_reads / total_employees_count) * 100
-        
-        # Get creator name
-        creator_query = select(employees).where(employees.c.id == announcement_dict["created_by"])
-        creator = db.execute(creator_query).fetchone()
-        creator_name = None
-        if creator:
-            creator_dict = dict(creator._mapping)
-            creator_name = f"{creator_dict['first_name']} {creator_dict['last_name']}"
-        
-        stats.append({
-            "announcement_id": announcement_dict["id"],
-            "title": announcement_dict["title"],
-            "created_at": announcement_dict["created_at"],
-            "created_by": announcement_dict["created_by"],
-            "creator_name": creator_name,
-            "expires_at": announcement_dict["expires_at"],
-            "total_reads": total_reads,
-            "total_employees": total_employees_count,
-            "read_percentage": read_percentage
-        })
-    
-    return stats
