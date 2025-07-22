@@ -1,416 +1,619 @@
-// src/app/(dashboard)/users/page.tsx (COMPLETE FILE)
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { User, UserFormData, Department, Employee } from '@/types';
+import { useState, useEffect } from 'react'
+import { Card, CardContent } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
+import { SearchBar } from '@/components/ui/SearchBar'
+import { useAuth } from '@/contexts/AuthContext'
+import api from '@/services/api'
+import { permanentDeleteUser } from '@/services/users'
 
-// Mock data and functions (replace with actual API calls)
-const mockUsers: User[] = [
-  { id: 1, username: 'admin', user_type: 'admin', department_id: null, employee_id: null, role: 'admin', is_active: true },
-  { id: 2, username: 'manager1', user_type: 'manager', department_id: 1, employee_id: 1, role: 'manager', is_active: true },
-  { id: 3, username: 'staff1', user_type: 'staff', department_id: 2, employee_id: 2, role: 'staff', is_active: true },
-];
-
-const mockDepartments: Department[] = [
-  { id: 1, name: 'Produce', manager_id: 1 },
-  { id: 2, name: 'Grocery', manager_id: 2 },
-  { id: 3, name: 'Meat', manager_id: null },
-];
-
-const mockEmployees: Employee[] = [
-  { id: 1, name: 'John Doe', employee_id: 'EMP001', department_id: 1, position: 'Manager' },
-  { id: 2, name: 'Jane Smith', employee_id: 'EMP002', department_id: 2, position: 'Clerk' },
-];
-
-async function getUsers(): Promise<User[]> {
-  // Replace with actual API call
-  return Promise.resolve(mockUsers);
+interface User {
+  id: number
+  username: string
+  user_type: string
+  employee_id: number | null
+  department_id: number | null
+  role: string
+  is_active: boolean
 }
 
-async function getDepartments(): Promise<Department[]> {
-  // Replace with actual API call
-  return Promise.resolve(mockDepartments);
+interface Employee {
+  id: number
+  first_name: string
+  last_name: string
+  employee_id: string
+  department_id: number | null
 }
 
-async function getEmployees(): Promise<Employee[]> {
-  // Replace with actual API call
-  return Promise.resolve(mockEmployees);
+interface Department {
+  id: number
+  name: string
+  is_active: boolean
 }
 
-async function createUser(data: {
-  username: string;
-  password: string;
-  user_type: string;
-  role: string;
-  is_active: boolean;
-  department_id?: number;
-  employee_id?: number;
-}): Promise<User> {
-  // Replace with actual API call
-  const newUser: User = {
-    id: mockUsers.length + 1,
-    username: data.username,
-    user_type: data.user_type,
-    department_id: data.department_id || null,
-    employee_id: data.employee_id || null,
-    role: data.role,
-    is_active: data.is_active
-  };
-  return Promise.resolve(newUser);
-}
-
-async function updateUser(id: number, data: {
-  username: string;
-  password?: string;
-  user_type: string;
-  role: string;
-  is_active: boolean;
-  department_id?: number;
-  employee_id?: number;
-}): Promise<User> {
-  // Replace with actual API call
-  const updatedUser: User = {
-    id,
-    username: data.username,
-    user_type: data.user_type,
-    department_id: data.department_id || null,
-    employee_id: data.employee_id || null,
-    role: data.role,
-    is_active: data.is_active
-  };
-  return Promise.resolve(updatedUser);
-}
-
-async function deleteUser(id: number): Promise<void> {
-  // Replace with actual API call
-  return Promise.resolve();
+interface UserFormData {
+  username: string
+  password: string
+  user_type: string
+  employee_id: number | null
+  department_id: number | null
+  role: string
+  is_active: boolean
 }
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const { user: currentUser, isAdmin } = useAuth()
+  const [users, setUsers] = useState<User[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState<string>('')
+  const [showForm, setShowForm] = useState<boolean>(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
+  
+  const [showInactive, setShowInactive] = useState<boolean>(false)
+  
   const [formData, setFormData] = useState<UserFormData>({
     username: '',
     password: '',
     user_type: 'staff',
-    department_id: null,
     employee_id: null,
+    department_id: null,
     role: 'staff',
-    is_active: true,
-  });
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+    is_active: true
+  })
+
+  const roleOptions = [
+    'admin',
+    'manager',
+    'lead',
+    'staff'
+  ]
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!isAdmin) return
+      
       try {
-        const [usersData, departmentsData, employeesData] = await Promise.all([
-          getUsers(),
-          getDepartments(),
-          getEmployees()
-        ]);
-        setUsers(usersData);
-        setDepartments(departmentsData);
-        setEmployees(employeesData);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setLoading(false);
-      }
-    };
-    
-    fetchData();
-  }, []);
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value, type } = e.target as HTMLInputElement;
-    
-    if (type === 'checkbox') {
-      const target = e.target as HTMLInputElement;
-      setFormData(prev => ({
-        ...prev,
-        [name]: target.checked,
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: ['department_id', 'employee_id'].includes(name)
-          ? value ? parseInt(value) : null
-          : value,
-      }));
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      // Create API-compatible object from form data
-      const apiData = {
-        username: formData.username,
-        password: formData.password,
-        user_type: formData.user_type,
-        role: formData.role,
-        is_active: formData.is_active,
-        // Only include optional fields if they're not null
-        ...(formData.department_id !== null && { department_id: formData.department_id }),
-        ...(formData.employee_id !== null && { employee_id: formData.employee_id }),
-      };
-
-      if (editingId) {
-        // For update, we can omit the password if it's empty
-        if (!apiData.password) {
-          const { password, ...dataWithoutPassword } = apiData;
-          await updateUser(editingId, dataWithoutPassword);
-        } else {
-          await updateUser(editingId, apiData);
+        setLoading(true)
+        setError(null)
+        
+        const usersResponse = await api.get('/auth/users', {
+          params: {
+            include_inactive: true
+          }
+        })
+        if (usersResponse.data && usersResponse.data.items) {
+          setUsers(usersResponse.data.items)
         }
-      } else {
-        await createUser(apiData);
+        
+        const deptResponse = await api.get('/departments')
+        if (deptResponse.data && deptResponse.data.items) {
+          setDepartments(deptResponse.data.items)
+        }
+        
+        const empResponse = await api.get('/employees')
+        if (empResponse.data && empResponse.data.items) {
+          setEmployees(empResponse.data.items)
+        }
+        
+      } catch (err: any) {
+        setError(err.message || 'Failed to load users')
+        console.error('Error fetching user data:', err)
+      } finally {
+        setLoading(false)
       }
-      
-      // Refresh users list
-      const updatedUsers = await getUsers();
-      setUsers(updatedUsers);
-      
-      // Reset form
-      setFormData({
-        username: '',
-        password: '',
-        user_type: 'staff',
-        department_id: null,
-        employee_id: null,
-        role: 'staff',
-        is_active: true,
-      });
-      setEditingId(null);
-    } catch (error) {
-      console.error('Error saving user:', error);
     }
-  };
+    
+    if (isAdmin) {
+      fetchData()
+    }
+  }, [isAdmin])
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+  }
+
+  const filteredUsers = users.filter(user => {
+    if (!showInactive && !user.is_active) {
+      return false;
+    }
+    
+    const searchLower = searchTerm.toLowerCase()
+    return (
+      user.username.toLowerCase().includes(searchLower) ||
+      user.role.toLowerCase().includes(searchLower) ||
+      user.user_type.toLowerCase().includes(searchLower) ||
+      (user.employee_id && employees.some(emp => 
+        emp.id === user.employee_id && 
+        (`${emp.first_name} ${emp.last_name}`).toLowerCase().includes(searchLower)
+      )) ||
+      (user.department_id && departments.some(dept => 
+        dept.id === user.department_id && 
+        dept.name.toLowerCase().includes(searchLower)
+      ))
+    )
+  })
+
+  const getEmployeeName = (employeeId: number | null) => {
+    if (!employeeId) return 'Not Linked'
+    const employee = employees.find(emp => emp.id === employeeId)
+    return employee ? `${employee.first_name} ${employee.last_name}` : `Employee ID: ${employeeId}`
+  }
+
+  const getDepartmentName = (departmentId: number | null) => {
+    if (!departmentId) return 'Not Assigned'
+    const dept = departments.find(d => d.id === departmentId)
+    return dept ? dept.name : `Department ${departmentId}`
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'employee_id' || name === 'department_id' ? 
+              (value ? parseInt(value) : null) : 
+              name === 'is_active' ? value === 'true' : 
+              value
+    }))
+  }
+
+  const resetForm = () => {
+    setFormData({
+      username: '',
+      password: '',
+      user_type: 'staff',
+      employee_id: null,
+      department_id: null,
+      role: 'staff',
+      is_active: true
+    })
+    setEditingId(null)
+  }
 
   const handleEdit = (user: User) => {
     setFormData({
       username: user.username,
-      password: '', // Don't include password when editing
+      password: '',
       user_type: user.user_type,
-      department_id: user.department_id,
       employee_id: user.employee_id,
+      department_id: user.department_id,
       role: user.role,
-      is_active: user.is_active,
-    });
-    setEditingId(user.id);
-  };
+      is_active: user.is_active
+    })
+    setEditingId(user.id)
+    setShowForm(true)
+  }
 
-  const handleDelete = async (id: number) => {
-    if (confirm('Are you sure you want to delete this user?')) {
-      try {
-        await deleteUser(id);
-        setUsers(users.filter(user => user.id !== id));
-      } catch (error) {
-        console.error('Error deleting user:', error);
+  const handleShowInactiveToggle = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setShowInactive(e.target.checked);
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    try {
+      setLoading(true)
+      setError(null)
+      
+      if (!editingId && !formData.password) {
+        throw new Error('Password is required for new users')
       }
+      
+      const basePayload = {
+        username: formData.username,
+        role: formData.role,
+        is_active: formData.is_active
+      }
+      
+      const payload: any = { ...basePayload }
+      
+      if (formData.password) {
+        payload.password = formData.password
+      }
+      
+      if (formData.user_type) {
+        payload.user_type = formData.user_type
+      }
+      
+      if (formData.employee_id !== null) {
+        payload.employee_id = Number(formData.employee_id) || null
+      }
+      
+      if (formData.department_id !== null) {
+        payload.department_id = Number(formData.department_id) || null
+      }
+      
+      if (editingId) {
+        await api.put(`/auth/users/${editingId}`, payload)
+      } else {
+        await api.post('/auth/users', payload)
+      }
+      
+      const response = await api.get('/auth/users', {
+        params: {
+          include_inactive: true
+        }
+      })
+      
+      if (response.data && response.data.items) {
+        setUsers(response.data.items)
+      }
+      
+      resetForm()
+      setShowForm(false)
+      
+    } catch (err: any) {
+      console.error('API error response:', err)
+      if (err.response && err.response.data) {
+        console.error('Response data:', err.response.data)
+      }
+      setError(err.response?.data?.detail || err.message || 'Failed to save user')
+    } finally {
+      setLoading(false)
     }
-  };
+  }
 
-  if (loading) return <div>Loading...</div>;
+  // ** Soft Delete (Deactivate) Handler **
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Are you sure you want to deactivate this user?')) {
+      return
+    }
+    
+    try {
+      setLoading(true)
+      setError(null)
+      
+      await api.delete(`/auth/users/${id}`)
+      
+      setUsers(prev => prev.map(user => 
+        user.id === id ? { ...user, is_active: false } : user
+      ))
+      
+    } catch (err: any) {
+      setError(err.message || 'Failed to deactivate user')
+      console.error('Error deactivating user:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ** Permanent Delete Handler **
+  const handlePermanentDelete = async (id: number) => {
+    if (!window.confirm('Are you sure you want to permanently delete this user? This action cannot be undone and will remove all associations.')) {
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError(null)
+
+      // First update the user to remove dependencies
+      try {
+        await api.put(`/auth/users/${id}`, {
+          employee_id: null,
+          department_id: null
+        })
+        console.log("Successfully removed user dependencies")
+      } catch (err) {
+        console.error("Error removing user dependencies:", err)
+        // Continue with delete anyway
+      }
+
+      // Then try the permanent delete
+      await permanentDeleteUser(id)
+
+      // Only update the UI if deletion was successful
+      setUsers(prev => prev.filter(user => user.id !== id))
+      setError(null)
+
+    } catch (err: any) {
+      // More detailed error handling
+      console.error('Error permanently deleting user:', err)
+      
+      let errorMessage = 'Failed to permanently delete user'
+      
+      if (err.response) {
+        console.error('Response status:', err.response.status)
+        console.error('Response data:', err.response.data)
+        
+        if (err.response.data && err.response.data.detail) {
+          errorMessage = err.response.data.detail
+        }
+      }
+      
+      setError(errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-lg font-medium">Access Denied</h2>
+            <p className="text-gray-600">You don't have permission to view this page.</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Users</h1>
-      
-      <form onSubmit={handleSubmit} className="mb-8 p-4 bg-white rounded shadow">
-        <h2 className="text-xl mb-4">{editingId ? 'Edit User' : 'Add User'}</h2>
+    <div className="p-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+        <h1 className="text-2xl font-bold mb-4 md:mb-0">Users</h1>
         
-        <div className="mb-4">
-          <label className="block mb-1">Username</label>
-          <input
-            type="text"
-            name="username"
-            value={formData.username}
-            onChange={handleChange}
-            className="w-full p-2 border rounded"
-            required
+        <div className="flex flex-col sm:flex-row gap-3">
+          <SearchBar
+            placeholder="Search users..."
+            value={searchTerm}
+            onChange={handleSearch}
+            className="w-full sm:w-64"
           />
-        </div>
-        
-        <div className="mb-4">
-          <label className="block mb-1">
-            {editingId ? 'New Password (leave blank to keep current)' : 'Password'}
-          </label>
-          <input
-            type="password"
-            name="password"
-            value={formData.password}
-            onChange={handleChange}
-            className="w-full p-2 border rounded"
-            required={!editingId}
-          />
-        </div>
-        
-        <div className="mb-4">
-          <label className="block mb-1">User Type</label>
-          <select
-            name="user_type"
-            value={formData.user_type}
-            onChange={handleChange}
-            className="w-full p-2 border rounded"
+          
+          <Button
+            variant="accent"
+            onClick={() => {
+              resetForm()
+              setShowForm(!showForm)
+            }}
           >
-            <option value="admin">Admin</option>
-            <option value="manager">Manager</option>
-            <option value="staff">Staff</option>
-          </select>
+            {showForm ? 'Cancel' : 'Add User'}
+          </Button>
         </div>
-        
-        <div className="mb-4">
-          <label className="block mb-1">Department</label>
-          <select
-            name="department_id"
-            value={formData.department_id === null ? '' : formData.department_id}
-            onChange={handleChange}
-            className="w-full p-2 border rounded"
-          >
-            <option value="">No Department</option>
-            {departments.map(department => (
-              <option key={department.id} value={department.id}>
-                {department.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        
-        <div className="mb-4">
-          <label className="block mb-1">Employee</label>
-          <select
-            name="employee_id"
-            value={formData.employee_id === null ? '' : formData.employee_id}
-            onChange={handleChange}
-            className="w-full p-2 border rounded"
-          >
-            <option value="">No Employee</option>
-            {employees.map(employee => (
-              <option key={employee.id} value={employee.id}>
-                {employee.name} ({employee.employee_id})
-              </option>
-            ))}
-          </select>
-        </div>
-        
-        <div className="mb-4">
-          <label className="block mb-1">Role</label>
-          <select
-            name="role"
-            value={formData.role}
-            onChange={handleChange}
-            className="w-full p-2 border rounded"
-          >
-            <option value="admin">Admin</option>
-            <option value="manager">Manager</option>
-            <option value="staff">Staff</option>
-            <option value="dairy_lead">Dairy Lead</option>
-            <option value="bulk_lead">Bulk Lead</option>
-          </select>
-        </div>
-        
-        <div className="mb-4 flex items-center">
-          <input
-            type="checkbox"
-            name="is_active"
-            id="is_active"
-            checked={formData.is_active}
-            onChange={handleChange}
-            className="mr-2"
-          />
-          <label htmlFor="is_active">Active User</label>
-        </div>
-        
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
-          >
-            {editingId ? 'Update' : 'Add'} User
-          </button>
-          {editingId && (
-            <button
-              type="button"
-              onClick={() => {
-                setFormData({
-                  username: '',
-                  password: '',
-                  user_type: 'staff',
-                  department_id: null,
-                  employee_id: null,
-                  role: 'staff',
-                  is_active: true,
-                });
-                setEditingId(null);
-              }}
-              className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
-            >
-              Cancel
-            </button>
-          )}
-        </div>
-      </form>
-      
-      <div className="bg-white rounded shadow overflow-hidden">
-        <table className="min-w-full">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="py-2 px-4 text-left">ID</th>
-              <th className="py-2 px-4 text-left">Username</th>
-              <th className="py-2 px-4 text-left">Type</th>
-              <th className="py-2 px-4 text-left">Department</th>
-              <th className="py-2 px-4 text-left">Employee</th>
-              <th className="py-2 px-4 text-left">Role</th>
-              <th className="py-2 px-4 text-left">Status</th>
-              <th className="py-2 px-4 text-left">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map(user => (
-              <tr key={user.id} className="border-t">
-                <td className="py-2 px-4">{user.id}</td>
-                <td className="py-2 px-4">{user.username}</td>
-                <td className="py-2 px-4">{user.user_type}</td>
-                <td className="py-2 px-4">
-                  {user.department_id 
-                    ? departments.find(d => d.id === user.department_id)?.name || 'Unknown' 
-                    : 'None'}
-                </td>
-                <td className="py-2 px-4">
-                  {user.employee_id 
-                    ? employees.find(e => e.id === user.employee_id)?.name || 'Unknown' 
-                    : 'None'}
-                </td>
-                <td className="py-2 px-4">{user.role}</td>
-                <td className="py-2 px-4">
-                  <span className={`px-2 py-1 rounded ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                    {user.is_active ? 'Active' : 'Inactive'}
-                  </span>
-                </td>
-                <td className="py-2 px-4">
-                  <button
-                    onClick={() => handleEdit(user)}
-                    className="mr-2 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(user.id)}
-                    className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
+      
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-md">
+          {error}
+        </div>
+      )}
+      
+      <div className="flex items-center mb-4 mt-2">
+        <input
+          type="checkbox"
+          id="showInactive"
+          checked={showInactive}
+          onChange={handleShowInactiveToggle}
+          className="h-4 w-4 text-accent border-gray-300 rounded"
+        />
+        <label htmlFor="showInactive" className="ml-2 block text-sm text-gray-600">
+          Show inactive users
+        </label>
+      </div>
+      
+      {showForm && (
+        <Card className="mb-6">
+          <CardContent className="p-6">
+            <h2 className="text-xl font-semibold mb-4">
+              {editingId ? 'Edit User' : 'Add New User'}
+            </h2>
+            
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    name="username"
+                    value={formData.username}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Password {editingId && '(leave blank to keep current)'}
+                  </label>
+                  <input
+                    type="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    required={!editingId}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Role
+                  </label>
+                  <select
+                    name="role"
+                    value={formData.role}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    required
+                  >
+                    {roleOptions.map(role => (
+                      <option key={role} value={role}>
+                        {role.charAt(0).toUpperCase() + role.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    User Type
+                  </label>
+                  <select
+                    name="user_type"
+                    value={formData.user_type}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="staff">Staff</option>
+                    <option value="manager">Manager</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Linked Employee
+                  </label>
+                  <select
+                    name="employee_id"
+                    value={formData.employee_id === null ? '' : formData.employee_id}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="">None</option>
+                    {employees.map(emp => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.first_name} {emp.last_name} ({emp.employee_id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Department
+                  </label>
+                  <select
+                    name="department_id"
+                    value={formData.department_id === null ? '' : formData.department_id}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="">None</option>
+                    {departments.map(dept => (
+                      <option key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Status
+                  </label>
+                  <select
+                    name="is_active"
+                    value={formData.is_active.toString()}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="true">Active</option>
+                    <option value="false">Inactive</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    resetForm()
+                    setShowForm(false)
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" variant="accent">
+                  {editingId ? 'Update' : 'Create'} User
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+      
+      {loading ? (
+        <div className="flex justify-center p-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent"></div>
+        </div>
+      ) : filteredUsers.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full bg-white rounded-lg overflow-hidden">
+            <thead className="bg-secondary/10">
+              <tr>
+                <th className="py-3 px-4 text-left">Username</th>
+                <th className="py-3 px-4 text-left">Role</th>
+                <th className="py-3 px-4 text-left">Employee</th>
+                <th className="py-3 px-4 text-left">Department</th>
+                <th className="py-3 px-4 text-left">Status</th>
+                <th className="py-3 px-4 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {filteredUsers.map(user => (
+                <tr key={user.id} className="hover:bg-secondary/5">
+                  <td className="py-3 px-4">{user.username}</td>
+                  <td className="py-3 px-4">{user.role.charAt(0).toUpperCase() + user.role.slice(1)}</td>
+                  <td className="py-3 px-4">{getEmployeeName(user.employee_id)}</td>
+                  <td className="py-3 px-4">{getDepartmentName(user.department_id)}</td>
+                  <td className="py-3 px-4">
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {user.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEdit(user)}
+                      >
+                        Edit
+                      </Button>
+                      
+                      {currentUser && user.id !== currentUser.id && (
+                        <>
+                          {/* Soft Delete (Deactivate) */}
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDelete(user.id)}
+                            title="Deactivate user (keeps record in database)"
+                          >
+                            Deactivate
+                          </Button>
+                          {/* Permanent Delete */}
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handlePermanentDelete(user.id)}
+                            title="Permanently delete user from database"
+                          >
+                            Delete Permanently
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <p className="text-gray-500">
+              {showInactive 
+                ? "No users found matching your search criteria." 
+                : "No active users found. Try enabling 'Show inactive users' to see all users."}
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
-  );
+  )
 }

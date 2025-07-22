@@ -1,111 +1,70 @@
-// components/ui/SearchBar.tsx
-import { useState, useEffect } from 'react'
+// Path: src/components/ui/SearchBar.tsx
+import React from 'react';
+import { cn } from '@/lib/utils';
 
-interface SearchBarProps {
-  onSearch: (searchTerm: string) => void
-  placeholder?: string
-  initialValue?: string
-  className?: string
-  debounceTime?: number
+// Simple search icon to avoid Lucide dependency
+const SearchIcon = () => (
+  <svg 
+    className="h-4 w-4 text-gray-400" 
+    fill="none" 
+    stroke="currentColor" 
+    viewBox="0 0 24 24" 
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      strokeWidth={2} 
+      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" 
+    />
+  </svg>
+);
+
+interface SearchBarProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  containerClassName?: string;
+  onSearch?: (term: string) => void; // Added onSearch prop
 }
 
-const SearchBar = ({
-  onSearch,
-  placeholder = 'Search...',
-  initialValue = '',
-  className = '',
-  debounceTime = 300
-}: SearchBarProps) => {
-  const [searchTerm, setSearchTerm] = useState(initialValue)
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(initialValue)
+const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
+  ({ className, containerClassName, onSearch, onChange, ...props }, ref) => {
+    // Handle change to support both onChange and onSearch
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      // Call the original onChange if provided
+      if (onChange) {
+        onChange(e);
+      }
+      
+      // Also call onSearch if provided
+      if (onSearch) {
+        onSearch(e.target.value);
+      }
+    };
 
-  // Update search term when input changes
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value)
-  }
-
-  // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    onSearch(searchTerm)
-  }
-
-  // Clear search input
-  const handleClear = () => {
-    setSearchTerm('')
-    onSearch('')
-  }
-
-  // Debounce search to avoid too many requests
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm)
-    }, debounceTime)
-
-    return () => {
-      clearTimeout(handler)
-    }
-  }, [searchTerm, debounceTime])
-
-  // Trigger search when debounced term changes
-  useEffect(() => {
-    if (debouncedSearchTerm !== initialValue) {
-      onSearch(debouncedSearchTerm)
-    }
-  }, [debouncedSearchTerm, onSearch, initialValue])
-
-  return (
-    <form 
-      onSubmit={handleSubmit}
-      className={`relative flex items-center ${className}`}
-    >
-      <input
-        type="text"
-        value={searchTerm}
-        onChange={handleChange}
-        placeholder={placeholder}
-        className="form-input pl-10 pr-10 py-2 w-full rounded-lg border border-cream-300"
-      />
-      <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-dark-500">
-        <svg 
-          xmlns="http://www.w3.org/2000/svg" 
-          width="18" 
-          height="18" 
-          viewBox="0 0 24 24" 
-          fill="none" 
-          stroke="currentColor" 
-          strokeWidth="2" 
-          strokeLinecap="round" 
-          strokeLinejoin="round"
-        >
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-        </svg>
+    return (
+      <div className={cn("relative w-full", containerClassName)}>
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <SearchIcon />
+        </div>
+        <input
+          type="search"
+          className={cn(
+            "block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md bg-white",
+            "focus:ring-1 focus:ring-accent focus:border-accent text-sm text-gray-900",
+            "placeholder:text-gray-500",
+            className
+          )}
+          onChange={handleChange}
+          ref={ref}
+          {...props}
+        />
       </div>
-      {searchTerm && (
-        <button
-          type="button"
-          onClick={handleClear}
-          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-dark-500 hover:text-dark-700"
-        >
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            width="18" 
-            height="18" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            stroke="currentColor" 
-            strokeWidth="2" 
-            strokeLinecap="round" 
-            strokeLinejoin="round"
-          >
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      )}
-    </form>
-  )
-}
+    );
+  }
+);
 
-export default SearchBar
+SearchBar.displayName = 'SearchBar';
+
+export { SearchBar };
+
+// For backwards compatibility with components using default import
+export default SearchBar;

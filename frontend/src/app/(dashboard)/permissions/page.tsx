@@ -1,179 +1,577 @@
-// src/app/(dashboard)/permissions/page.tsx (COMPLETE FILE)
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { Permission, RolePermission } from '@/types';
+import { useState, useEffect } from 'react'
+import { Card, CardContent } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
+import { SearchBar } from '@/components/ui/SearchBar'
+import { useAuth } from '@/contexts/AuthContext'
+import api from '@/services/api'
 
-// Mock data and functions (replace with actual API calls)
-const mockPermissions: Permission[] = [
-  { id: 1, name: 'create_user', description: 'Create new users' },
-  { id: 2, name: 'edit_user', description: 'Edit existing users' },
-  { id: 3, name: 'delete_user', description: 'Delete users' },
-  { id: 4, name: 'create_department', description: 'Create new departments' },
-  { id: 5, name: 'edit_department', description: 'Edit existing departments' },
-  { id: 6, name: 'delete_department', description: 'Delete departments' },
-  { id: 7, name: 'create_employee', description: 'Create new employees' },
-  { id: 8, name: 'edit_employee', description: 'Edit existing employees' },
-  { id: 9, name: 'delete_employee', description: 'Delete employees' },
-];
-
-const mockRolePermissions: RolePermission[] = [
-  { role: 'admin', permissions: ['create_user', 'edit_user', 'delete_user', 'create_department', 'edit_department', 'delete_department', 'create_employee', 'edit_employee', 'delete_employee'] },
-  { role: 'manager', permissions: ['create_employee', 'edit_employee', 'delete_employee'] },
-  { role: 'staff', permissions: [] },
-];
-
-async function getPermissions(): Promise<Permission[]> {
-  // Replace with actual API call
-  return Promise.resolve(mockPermissions);
+interface Permission {
+  id: number
+  permission_name: string
+  description: string | null
+  category: string | null
 }
 
-async function getRolePermissions(): Promise<RolePermission[]> {
-  // Replace with actual API call
-  return Promise.resolve(mockRolePermissions);
+interface RolePermission {
+  role: string
+  permission_id: number
+  permission_name?: string
+  can_view: boolean
+  can_create: boolean
+  can_edit: boolean
+  can_delete: boolean
 }
 
-async function updateRolePermissions(role: string, permissions: string[]): Promise<void> {
-  // Replace with actual API call
-  console.log(`Updated permissions for ${role}:`, permissions);
-  return Promise.resolve();
+interface PermissionFormData {
+  permission_name: string
+  description: string
+  category: string
+}
+
+interface RolePermissionMap {
+  [key: string]: Array<{
+    permission_id: number
+    permission_name: string
+    can_view: boolean
+    can_create: boolean
+    can_edit: boolean
+    can_delete: boolean
+  }>
 }
 
 export default function PermissionsPage() {
-  const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [roles, setRoles] = useState<string[]>(['admin', 'manager', 'staff', 'dairy_lead', 'bulk_lead']); 
-  const [rolePermissions, setRolePermissions] = useState<RolePermission[]>([]);
-  const [selectedRole, setSelectedRole] = useState<string>('admin');
-  const [loading, setLoading] = useState(true);
+  const { isAdmin } = useAuth()
+  const [permissions, setPermissions] = useState<Permission[]>([])
+  const [rolePermissions, setRolePermissions] = useState<RolePermissionMap>({})
+  const [selectedRole, setSelectedRole] = useState<string>('admin')
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState<string>('')
+  const [showForm, setShowForm] = useState<boolean>(false)
+  const [editingPermissionId, setEditingPermissionId] = useState<number | null>(null)
+  const [permissionForm, setPermissionForm] = useState<PermissionFormData>({
+    permission_name: '',
+    description: '',
+    category: 'general'
+  })
+  
+  // Available roles in the system
+  const roles = ['admin', 'manager', 'lead', 'staff']
+  
+  // Permission categories
+  const categories = [
+    'general', 
+    'user_management',
+    'employee_management',
+    'department_management',
+    'task_management',
+    'inventory_management',
+    'orders_management',
+    'equipment_management',
+    'temperature_monitoring',
+    'training_management',
+    'reporting'
+  ]
 
+  // Fetch permissions data
   useEffect(() => {
     const fetchData = async () => {
+      if (!isAdmin) return
+      
       try {
-        const [permissionsData, rolePermissionsData] = await Promise.all([
-          getPermissions(),
-          getRolePermissions()
-        ]);
-        setPermissions(permissionsData);
-        setRolePermissions(rolePermissionsData);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching permissions data:', error);
-        setLoading(false);
-      }
-    };
-    
-    fetchData();
-  }, []);
-
-  const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedRole(e.target.value);
-  };
-
-  const handlePermissionToggle = (e: React.ChangeEvent<HTMLInputElement>, permissionName: string) => {
-    // Properly type-cast e.target as HTMLInputElement to access checked property
-    const target = e.target as HTMLInputElement;
-    const isChecked = target.checked;
-    
-    setRolePermissions(prev => {
-      // Find current role permissions
-      const currentRolePermissions = prev.find(rp => rp.role === selectedRole);
-      
-      if (currentRolePermissions) {
-        // Update existing role permissions
-        return prev.map(rp => {
-          if (rp.role === selectedRole) {
-            return {
-              ...rp,
-              permissions: isChecked
-                ? [...rp.permissions, permissionName]
-                : rp.permissions.filter(p => p !== permissionName)
-            };
+        setLoading(true)
+        setError(null)
+        
+        // Try different paths for permissions
+        let permissionsData: Permission[] = []
+        let permissionsError = null
+        
+        // Try the main permissions endpoint
+        try {
+          const permResponse = await api.get('/permissions')
+          if (permResponse.data && permResponse.data.items) {
+            permissionsData = permResponse.data.items
           }
-          return rp;
-        });
-      } else {
-        // Create new role permissions entry
-        return [
-          ...prev,
-          {
-            role: selectedRole,
-            permissions: isChecked ? [permissionName] : []
+        } catch (err: any) {
+          permissionsError = err
+          console.error('Error fetching permissions from main endpoint:', err)
+          
+          // Try alternative endpoint
+          try {
+            const altResponse = await api.get('/api/permissions')
+            if (altResponse.data && altResponse.data.items) {
+              permissionsData = altResponse.data.items
+              permissionsError = null // Clear error if alternative works
+            }
+          } catch (altErr) {
+            console.error('Error fetching permissions from alternative endpoint:', altErr)
           }
-        ];
+        }
+        
+        if (permissionsError && permissionsData.length === 0) {
+          throw permissionsError
+        }
+        
+        setPermissions(permissionsData)
+        
+        // Fetch role permissions for each role
+        const rolePermMap: RolePermissionMap = {}
+        
+        for (const role of roles) {
+          try {
+            // Try different paths for role permissions
+            let rolePermData = []
+            try {
+              const rolePermResponse = await api.get(`/permissions/roles/${role}`)
+              if (rolePermResponse.data && rolePermResponse.data.items) {
+                rolePermData = rolePermResponse.data.items
+              }
+            } catch (roleErr) {
+              // Try alternative endpoint
+              try {
+                const altRoleResponse = await api.get(`/api/permissions/roles/${role}`)
+                if (altRoleResponse.data && altRoleResponse.data.items) {
+                  rolePermData = altRoleResponse.data.items
+                }
+              } catch (altRoleErr) {
+                // Silently fail - some roles might not have permissions
+                console.warn(`Could not fetch permissions for role ${role}`)
+              }
+            }
+            
+            rolePermMap[role] = rolePermData
+          } catch (err) {
+            console.error(`Error fetching permissions for role ${role}:`, err)
+            // Continue with other roles even if one fails
+          }
+        }
+        
+        setRolePermissions(rolePermMap)
+        
+      } catch (err: any) {
+        setError(err.message || 'Failed to load permissions')
+        console.error('Error fetching permission data:', err)
+      } finally {
+        setLoading(false)
       }
-    });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const rolePermission = rolePermissions.find(rp => rp.role === selectedRole);
-      
-      if (rolePermission) {
-        await updateRolePermissions(selectedRole, rolePermission.permissions);
-        alert('Permissions updated successfully');
-      }
-    } catch (error) {
-      console.error('Error updating permissions:', error);
     }
-  };
+    
+    if (isAdmin) {
+      fetchData()
+    }
+  }, [isAdmin])
 
-  const isPermissionEnabled = (permissionName: string) => {
-    const rolePermission = rolePermissions.find(rp => rp.role === selectedRole);
-    return rolePermission?.permissions.includes(permissionName) || false;
-  };
+  // Handle search
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value)
+  }
 
-  if (loading) return <div>Loading...</div>;
+  // Filter permissions based on search term
+  const filteredPermissions = permissions.filter(perm => {
+    const searchLower = searchTerm.toLowerCase()
+    return (
+      perm.permission_name.toLowerCase().includes(searchLower) ||
+      (perm.description && perm.description.toLowerCase().includes(searchLower)) ||
+      (perm.category && perm.category.toLowerCase().includes(searchLower))
+    )
+  })
+
+  // Handle permission form input changes
+  const handlePermissionFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setPermissionForm(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+
+  // Reset permission form
+  const resetPermissionForm = () => {
+    setPermissionForm({
+      permission_name: '',
+      description: '',
+      category: 'general'
+    })
+    setEditingPermissionId(null)
+  }
+
+  // Handle permission form submission
+  const handlePermissionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    try {
+      setLoading(true)
+      setError(null)
+      
+      if (editingPermissionId) {
+        // Update existing permission
+        await api.put(`/permissions/${editingPermissionId}`, permissionForm)
+      } else {
+        // Create new permission
+        await api.post('/permissions', permissionForm)
+      }
+      
+      // Refresh permissions
+      const response = await api.get('/permissions')
+      if (response.data && response.data.items) {
+        setPermissions(response.data.items)
+      }
+      
+      // Reset form and close it
+      resetPermissionForm()
+      setShowForm(false)
+      
+    } catch (err: any) {
+      setError(err.message || 'Failed to save permission')
+      console.error('Error saving permission:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Load permission for editing
+  const handleEditPermission = (permission: Permission) => {
+    setPermissionForm({
+      permission_name: permission.permission_name,
+      description: permission.description || '',
+      category: permission.category || 'general'
+    })
+    setEditingPermissionId(permission.id)
+    setShowForm(true)
+  }
+
+  // Handle permission deletion
+  const handleDeletePermission = async (id: number) => {
+    if (!window.confirm('Are you sure you want to delete this permission?')) {
+      return
+    }
+    
+    try {
+      setLoading(true)
+      setError(null)
+      
+      await api.delete(`/permissions/${id}`)
+      
+      // Remove from local state
+      setPermissions(prev => prev.filter(p => p.id !== id))
+      
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete permission')
+      console.error('Error deleting permission:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Handle role permission toggle
+  const handlePermissionToggle = async (
+    role: string,
+    permissionId: number,
+    field: 'can_view' | 'can_create' | 'can_edit' | 'can_delete',
+    value: boolean
+  ) => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      // Update the permission
+      await api.put(`/permissions/roles/${role}/${permissionId}`, {
+        [field]: value
+      })
+      
+      // Update local state
+      setRolePermissions(prev => {
+        const updatedRolePerms = { ...prev }
+        if (updatedRolePerms[role]) {
+          updatedRolePerms[role] = updatedRolePerms[role].map(rp => {
+            if (rp.permission_id === permissionId) {
+              return { ...rp, [field]: value }
+            }
+            return rp
+          })
+        }
+        return updatedRolePerms
+      })
+      
+    } catch (err: any) {
+      setError(err.message || 'Failed to update permission')
+      console.error('Error updating permission:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-lg font-medium">Access Denied</h2>
+            <p className="text-gray-600">You don't have permission to view this page.</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Role Permissions</h1>
-      
-      <div className="mb-4">
-        <label className="block mb-1">Select Role:</label>
-        <select
-          value={selectedRole}
-          onChange={handleRoleChange}
-          className="w-64 p-2 border rounded"
-        >
-          {roles.map(role => (
-            <option key={role} value={role}>
-              {role.charAt(0).toUpperCase() + role.slice(1).replace('_', ' ')}
-            </option>
-          ))}
-        </select>
+    <div className="p-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+        <h1 className="text-2xl font-bold mb-4 md:mb-0">Permissions Management</h1>
+        
+        <div className="flex flex-wrap gap-3">
+          <div>
+            <select
+              value={selectedRole}
+              onChange={(e) => setSelectedRole(e.target.value)}
+              className="p-2 border border-gray-300 rounded-md"
+            >
+              {roles.map(role => (
+                <option key={role} value={role}>
+                  {role.charAt(0).toUpperCase() + role.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <SearchBar
+            placeholder="Search permissions..."
+            value={searchTerm}
+            onChange={handleSearch}
+            className="w-full sm:w-64"
+          />
+          
+          <Button
+            variant="accent"
+            onClick={() => {
+              resetPermissionForm()
+              setShowForm(!showForm)
+            }}
+          >
+            {showForm ? 'Cancel' : 'Add Permission'}
+          </Button>
+        </div>
       </div>
       
-      <form onSubmit={handleSubmit} className="bg-white rounded shadow p-4">
-        <h2 className="text-xl mb-4">
-          Permissions for {selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1).replace('_', ' ')}
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-          {permissions.map(permission => (
-            <div key={permission.id} className="flex items-center">
-              <input
-                type="checkbox"
-                id={`permission-${permission.id}`}
-                checked={isPermissionEnabled(permission.name)}
-                onChange={(e) => handlePermissionToggle(e, permission.name)}
-                className="mr-2"
-              />
-              <label htmlFor={`permission-${permission.id}`} className="flex flex-col">
-                <span className="font-medium">{permission.name.replace('_', ' ')}</span>
-                <span className="text-sm text-gray-600">{permission.description}</span>
-              </label>
-            </div>
-          ))}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-md">
+          {error}
         </div>
-        
-        <button
-          type="submit"
-          className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
-        >
-          Save Permissions
-        </button>
-      </form>
+      )}
+      
+      {showForm && (
+        <Card className="mb-6">
+          <CardContent className="p-6">
+            <h2 className="text-xl font-semibold mb-4">
+              {editingPermissionId ? 'Edit Permission' : 'Add New Permission'}
+            </h2>
+            
+            <form onSubmit={handlePermissionSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Permission Name</label>
+                  <input
+                    type="text"
+                    name="permission_name"
+                    value={permissionForm.permission_name}
+                    onChange={handlePermissionFormChange}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">Category</label>
+                  <select
+                    name="category"
+                    value={permissionForm.category}
+                    onChange={handlePermissionFormChange}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                  >
+                    {categories.map(category => (
+                      <option key={category} value={category}>
+                        {category.replace('_', ' ').split(' ').map(word => 
+                          word.charAt(0).toUpperCase() + word.slice(1)
+                        ).join(' ')}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-1">Description</label>
+                  <textarea
+                    name="description"
+                    value={permissionForm.description}
+                    onChange={handlePermissionFormChange}
+                    className="w-full p-2 border border-gray-300 rounded-md h-24"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    resetPermissionForm()
+                    setShowForm(false)
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" variant="default">
+                  {editingPermissionId ? 'Update Permission' : 'Add Permission'}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+      
+      {loading ? (
+        <div className="flex justify-center p-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent"></div>
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-xl font-semibold mb-4">
+              {selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)} Role Permissions
+            </h2>
+            
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead className="bg-secondary/10">
+                  <tr>
+                    <th className="py-3 px-4 text-left">Permission</th>
+                    <th className="py-3 px-4 text-center">View</th>
+                    <th className="py-3 px-4 text-center">Create</th>
+                    <th className="py-3 px-4 text-center">Edit</th>
+                    <th className="py-3 px-4 text-center">Delete</th>
+                    <th className="py-3 px-4 text-left">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredPermissions.map(perm => {
+                    // Find corresponding role permission
+                    const rolePerm = rolePermissions[selectedRole]?.find(
+                      rp => rp.permission_id === perm.id
+                    ) || {
+                      permission_id: perm.id,
+                      permission_name: perm.permission_name,
+                      can_view: false,
+                      can_create: false,
+                      can_edit: false,
+                      can_delete: false
+                    }
+                    
+                    return (
+                      <tr key={perm.id} className="hover:bg-secondary/5">
+                        <td className="py-3 px-4">
+                          <div>
+                            <div className="font-medium">{perm.permission_name}</div>
+                            {perm.description && (
+                              <div className="text-xs text-gray-500">{perm.description}</div>
+                            )}
+                            {perm.category && (
+                              <div className="mt-1">
+                                <span className="inline-block px-2 py-0.5 bg-gray-100 text-xs rounded-full">
+                                  {perm.category}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={rolePerm.can_view}
+                            onChange={(e) => handlePermissionToggle(
+                              selectedRole,
+                              perm.id,
+                              'can_view',
+                              e.target.checked
+                            )}
+                            className="h-4 w-4 text-accent border-gray-300 rounded focus:ring-accent"
+                          />
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={rolePerm.can_create}
+                            onChange={(e) => handlePermissionToggle(
+                              selectedRole,
+                              perm.id,
+                              'can_create',
+                              e.target.checked
+                            )}
+                            className="h-4 w-4 text-accent border-gray-300 rounded focus:ring-accent"
+                          />
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={rolePerm.can_edit}
+                            onChange={(e) => handlePermissionToggle(
+                              selectedRole,
+                              perm.id,
+                              'can_edit',
+                              e.target.checked
+                            )}
+                            className="h-4 w-4 text-accent border-gray-300 rounded focus:ring-accent"
+                          />
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={rolePerm.can_delete}
+                            onChange={(e) => handlePermissionToggle(
+                              selectedRole,
+                              perm.id,
+                              'can_delete',
+                              e.target.checked
+                            )}
+                            className="h-4 w-4 text-accent border-gray-300 rounded focus:ring-accent"
+                          />
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditPermission(perm)}
+                            >
+                              Edit
+                            </Button>
+                            
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-error hover:bg-error/10"
+                              onClick={() => handleDeletePermission(perm.id)}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              
+              {filteredPermissions.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No permissions found
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
-  );
+  )
 }

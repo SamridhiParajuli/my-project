@@ -1,27 +1,40 @@
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
-import './globals.css'
-import { Providers } from './providers'
+// Path: src/app/layout.tsx
+import './globals.css';
+import type { Metadata } from 'next';
+import { Playfair_Display, Montserrat } from 'next/font/google';
+import { Providers } from './providers';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
+// Elegant serif font for headings
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-playfair',
+  weight: ['400', '500', '600', '700', '800', '900'],
+});
+
+// Clean sans-serif for body text
+const montserrat = Montserrat({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-montserrat',
+  weight: ['300', '400', '500', '600', '700'],
+});
 
 export const metadata: Metadata = {
-  title: 'Store Management System',
-  description: 'A comprehensive store management application for retail operations',
-}
+  title: 'GourmetPro - Premium Grocery Management',
+  description: 'Task management system for premium grocery chain',
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        <Providers>
-          {children}
-        </Providers>
+    <html lang="en" className={`${playfair.variable} ${montserrat.variable}`}>
+      <body className="font-sans bg-surface">
+        <Providers>{children}</Providers>
       </body>
     </html>
-  )
+  );
 }

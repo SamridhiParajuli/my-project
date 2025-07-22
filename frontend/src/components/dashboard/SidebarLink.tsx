@@ -1,26 +1,41 @@
-// components/dashboard/SidebarLink.tsx
-'use client'
-
-import Link from 'next/link'
+// Path: src/components/dashboard/SidebarLink.tsx
+import React from 'react';
+import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 interface SidebarLinkProps {
-  href: string
-  children: React.ReactNode
-  icon?: string
-  isActive: boolean
-  showText: boolean
+  href: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+  active?: boolean;
+  className?: string;
 }
 
-const SidebarLink = ({ href, children, icon = '•', isActive, showText }: SidebarLinkProps) => {
+const SidebarLink = ({ 
+  href, 
+  icon, 
+  children, 
+  active, 
+  className 
+}: SidebarLinkProps) => {
   return (
-    <Link 
-      href={href} 
-      className={`sidebar-link ${isActive ? 'active' : ''}`}
+    <Link
+      href={href}
+      className={cn(
+        'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200',
+        active 
+          ? 'bg-accent/10 text-accent border-l-2 border-accent' 
+          : 'text-secondary/70 hover:bg-primary-light hover:text-secondary hover:border-l-2 hover:border-secondary/30',
+        className
+      )}
     >
-      <span className="inline-flex items-center justify-center h-6 w-6 text-lg">{icon}</span>
-      {showText && <span className="ml-3 whitespace-nowrap overflow-hidden">{children}</span>}
+      {icon && <span className="flex-shrink-0">{icon}</span>}
+      <span>{children}</span>
+      {active && (
+        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-accent"></span>
+      )}
     </Link>
-  )
-}
+  );
+};
 
-export default SidebarLink
+export default SidebarLink;

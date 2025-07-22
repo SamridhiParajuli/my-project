@@ -1,43 +1,49 @@
-// components/auth/RoleProtectedRoute.tsx
-
-'use client'
-
-import { useEffect } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
-import { useAuth } from '@/hooks/useAuth'
+// Path: src/components/auth/RoleProtectedRoute.tsx
+import React from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface RoleProtectedRouteProps {
-  children: React.ReactNode
+  children: React.ReactNode;
+  allowedRoles: string[];
 }
 
-export default function RoleProtectedRoute({ children }: RoleProtectedRouteProps) {
-  const { user, loading, canAccessRoute } = useAuth()
-  const router = useRouter()
-  const pathname = usePathname()
+const RoleProtectedRoute: React.FC<RoleProtectedRouteProps> = ({
+  children,
+  allowedRoles,
+}) => {
+  const { user, isLoading } = useAuth();
+  const router = useRouter();
 
-  useEffect(() => {
-    if (!loading) {
-      // First check if user is logged in
-      if (!user) {
-        router.push('/login')
-        return
-      }
-      
-      // Then check if user has permission to access this route
-      if (!canAccessRoute(pathname)) {
-        router.push('/dashboard')
-      }
+  React.useEffect(() => {
+    if (!isLoading && (!user || !allowedRoles.includes(user.role))) {
+      router.push('/login');
     }
-  }, [loading, user, pathname, router, canAccessRoute])
+  }, [user, isLoading, router, allowedRoles]);
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-cream-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-dark-900"></div>
+      <div className="flex items-center justify-center h-screen bg-surface">
+        <div className="p-6 max-w-sm mx-auto bg-white rounded-md shadow-elegant">
+          <div className="flex items-center space-x-4">
+            <div className="h-12 w-12 rounded-full bg-accent/20 flex items-center justify-center">
+              <div className="h-8 w-8 rounded-full border-2 border-accent border-t-transparent animate-spin"></div>
+            </div>
+            <div>
+              <h3 className="text-lg font-medium text-primary">Authenticating</h3>
+              <p className="text-sm text-primary/60">Please wait while we verify your credentials...</p>
+            </div>
+          </div>
+        </div>
       </div>
-    )
+    );
   }
 
-  // If not loading and canAccessRoute didn't redirect, render children
-  return <>{children}</>
-}
+  if (!user || !allowedRoles.includes(user.role)) {
+    return null;
+  }
+
+  return <>{children}</>;
+};
+
+export default RoleProtectedRoute;

@@ -1,240 +1,402 @@
-// src/app/(dashboard)/departments/page.tsx (COMPLETE FILE)
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { Department, DepartmentFormData, User } from '@/types';
+import { useState, useEffect } from 'react'
+import { Card, CardContent } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
+import { SearchBar } from '@/components/ui/SearchBar'
+import { useAuth } from '@/contexts/AuthContext'
+import api from '@/services/api'
 
-// Mock data and functions (replace with actual API calls)
-const mockDepartments: Department[] = [
-  { id: 1, name: 'Produce', manager_id: 1 },
-  { id: 2, name: 'Grocery', manager_id: 2 },
-  { id: 3, name: 'Meat', manager_id: null },
-];
-
-const mockUsers: User[] = [
-  { id: 1, username: 'manager1', user_type: 'manager', department_id: 1, employee_id: 1, role: 'manager', is_active: true },
-  { id: 2, username: 'manager2', user_type: 'manager', department_id: 2, employee_id: 2, role: 'manager', is_active: true },
-];
-
-async function getDepartments(): Promise<Department[]> {
-  // Replace with actual API call
-  return Promise.resolve(mockDepartments);
+interface Department {
+  id: number
+  name: string
+  department_code: string | null
+  description: string | null
+  manager_id: number | null
+  is_active: boolean
 }
 
-async function getUsers(): Promise<User[]> {
-  // Replace with actual API call
-  return Promise.resolve(mockUsers);
+interface DepartmentFormData {
+  name: string
+  department_code: string
+  description: string
+  manager_id: number | null
+  is_active: boolean
 }
 
-async function createDepartment(data: { name: string; manager_id?: number }): Promise<Department> {
-  // Replace with actual API call
-  const newDept: Department = { 
-    id: mockDepartments.length + 1, 
-    name: data.name, 
-    manager_id: data.manager_id || null 
-  };
-  return Promise.resolve(newDept);
-}
-
-async function updateDepartment(id: number, data: { name: string; manager_id?: number }): Promise<Department> {
-  // Replace with actual API call
-  const updatedDept: Department = { 
-    id, 
-    name: data.name, 
-    manager_id: data.manager_id || null 
-  };
-  return Promise.resolve(updatedDept);
-}
-
-async function deleteDepartment(id: number): Promise<void> {
-  // Replace with actual API call
-  return Promise.resolve();
+interface Employee {
+  id: number
+  first_name: string
+  last_name: string
+  employee_id: string
+  position: string
 }
 
 export default function DepartmentsPage() {
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [managers, setManagers] = useState<User[]>([]);
+  const { user, isAdmin, isManager } = useAuth()
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState<string>('')
+  const [showForm, setShowForm] = useState<boolean>(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
   const [formData, setFormData] = useState<DepartmentFormData>({
     name: '',
+    department_code: '',
+    description: '',
     manager_id: null,
-  });
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+    is_active: true
+  })
 
+  // Fetch departments and potential managers
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [departmentsData, usersData] = await Promise.all([
-          getDepartments(),
-          getUsers()
-        ]);
-        setDepartments(departmentsData);
-        // Filter users who can be managers (e.g., user_type === 'manager' or 'admin')
-        setManagers(usersData.filter(user => ['admin', 'manager'].includes(user.user_type)));
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setLoading(false);
+        setLoading(true)
+        setError(null)
+        
+        // Fetch departments
+        const deptResponse = await api.get('/departments')
+        if (deptResponse.data && deptResponse.data.items) {
+          setDepartments(deptResponse.data.items)
+        }
+        
+        // Fetch employees for manager selection
+        const empResponse = await api.get('/employees', { 
+          params: { 
+            position: 'Department Manager' 
+          }
+        })
+        if (empResponse.data && empResponse.data.items) {
+          setEmployees(empResponse.data.items)
+        }
+        
+      } catch (err: any) {
+        setError(err.message || 'Failed to load departments')
+        console.error('Error fetching department data:', err)
+      } finally {
+        setLoading(false)
       }
-    };
+    }
     
-    fetchData();
-  }, []);
+    if (isAdmin || isManager) {
+      fetchData()
+    }
+  }, [isAdmin, isManager])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
+  // Filter departments based on search term
+  const filteredDepartments = departments.filter(dept => {
+    const searchLower = searchTerm.toLowerCase()
+    return (
+      dept.name.toLowerCase().includes(searchLower) ||
+      (dept.department_code && dept.department_code.toLowerCase().includes(searchLower)) ||
+      (dept.description && dept.description.toLowerCase().includes(searchLower))
+    )
+  })
+
+  // Get manager name
+  const getManagerName = (managerId: number | null) => {
+    if (!managerId) return 'Not Assigned'
+    const manager = employees.find(emp => emp.id === managerId)
+    return manager ? `${manager.first_name} ${manager.last_name}` : `Manager ID: ${managerId}`
+  }
+
+  // Handle form input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'manager_id' ? (value ? parseInt(value) : null) : value,
-    }));
-  };
+      [name]: name === 'manager_id' ? (value ? parseInt(value) : null) : 
+              name === 'is_active' ? value === 'true' : 
+              value
+    }))
+  }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      // Create API-compatible object from form data
-      const apiData = {
-        name: formData.name,
-        // Only include manager_id if it's not null
-        ...(formData.manager_id !== null && { manager_id: formData.manager_id }),
-      };
+  // Reset form
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      department_code: '',
+      description: '',
+      manager_id: null,
+      is_active: true
+    })
+    setEditingId(null)
+  }
 
-      if (editingId) {
-        await updateDepartment(editingId, apiData);
-      } else {
-        await createDepartment(apiData);
-      }
-      
-      // Refresh departments list
-      const updatedDepartments = await getDepartments();
-      setDepartments(updatedDepartments);
-      
-      // Reset form
-      setFormData({ name: '', manager_id: null });
-      setEditingId(null);
-    } catch (error) {
-      console.error('Error saving department:', error);
-    }
-  };
-
+  // Load department data for editing
   const handleEdit = (department: Department) => {
     setFormData({
       name: department.name,
+      department_code: department.department_code || '',
+      description: department.description || '',
       manager_id: department.manager_id,
-    });
-    setEditingId(department.id);
-  };
+      is_active: department.is_active
+    })
+    setEditingId(department.id)
+    setShowForm(true)
+  }
 
-  const handleDelete = async (id: number) => {
-    if (confirm('Are you sure you want to delete this department?')) {
-      try {
-        await deleteDepartment(id);
-        setDepartments(departments.filter(dept => dept.id !== id));
-      } catch (error) {
-        console.error('Error deleting department:', error);
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    try {
+      setLoading(true)
+      setError(null)
+      
+      if (editingId) {
+        // Update existing department
+        await api.put(`/departments/${editingId}`, formData)
+      } else {
+        // Create new department
+        await api.post('/departments', formData)
       }
+      
+      // Refresh department list
+      const response = await api.get('/departments')
+      if (response.data && response.data.items) {
+        setDepartments(response.data.items)
+      }
+      
+      // Reset form and close it
+      resetForm()
+      setShowForm(false)
+      
+    } catch (err: any) {
+      setError(err.message || 'Failed to save department')
+      console.error('Error saving department:', err)
+    } finally {
+      setLoading(false)
     }
-  };
+  }
 
-  if (loading) return <div>Loading...</div>;
+  // Handle department deletion
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Are you sure you want to delete this department?')) {
+      return
+    }
+    
+    try {
+      setLoading(true)
+      setError(null)
+      
+      await api.delete(`/departments/${id}`)
+      
+      // Remove from local state
+      setDepartments(prev => prev.filter(dept => dept.id !== id))
+      
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete department')
+      console.error('Error deleting department:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!isAdmin && !isManager) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-lg font-medium">Access Denied</h2>
+            <p className="text-gray-600">You don't have permission to view this page.</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Departments</h1>
-      
-      <form onSubmit={handleSubmit} className="mb-8 p-4 bg-white rounded shadow">
-        <h2 className="text-xl mb-4">{editingId ? 'Edit Department' : 'Add Department'}</h2>
+    <div className="p-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+        <h1 className="text-2xl font-bold mb-4 md:mb-0">Departments</h1>
         
-        <div className="mb-4">
-          <label className="block mb-1">Department Name</label>
-          <input
-            type="text"
-            name="name"
-            value={formData.name}
-            onChange={handleChange}
-            className="w-full p-2 border rounded"
-            required
+        <div className="flex flex-col sm:flex-row gap-3">
+          <SearchBar
+            placeholder="Search departments..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full sm:w-64"
           />
-        </div>
-        
-        <div className="mb-4">
-          <label className="block mb-1">Department Manager</label>
-          <select
-            name="manager_id"
-            value={formData.manager_id === null ? '' : formData.manager_id}
-            onChange={handleChange}
-            className="w-full p-2 border rounded"
-          >
-            <option value="">No Manager</option>
-            {managers.map(manager => (
-              <option key={manager.id} value={manager.id}>
-                {manager.username}
-              </option>
-            ))}
-          </select>
-        </div>
-        
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
-          >
-            {editingId ? 'Update' : 'Add'} Department
-          </button>
-          {editingId && (
-            <button
-              type="button"
+          
+          {isAdmin && (
+            <Button
+              variant="accent"
               onClick={() => {
-                setFormData({ name: '', manager_id: null });
-                setEditingId(null);
+                resetForm()
+                setShowForm(!showForm)
               }}
-              className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
             >
-              Cancel
-            </button>
+              {showForm ? 'Cancel' : 'Add Department'}
+            </Button>
           )}
         </div>
-      </form>
-      
-      <div className="bg-white rounded shadow overflow-hidden">
-        <table className="min-w-full">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="py-2 px-4 text-left">ID</th>
-              <th className="py-2 px-4 text-left">Name</th>
-              <th className="py-2 px-4 text-left">Manager</th>
-              <th className="py-2 px-4 text-left">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {departments.map(department => (
-              <tr key={department.id} className="border-t">
-                <td className="py-2 px-4">{department.id}</td>
-                <td className="py-2 px-4">{department.name}</td>
-                <td className="py-2 px-4">
-                  {department.manager_id 
-                    ? managers.find(m => m.id === department.manager_id)?.username || 'Unknown' 
-                    : 'None'}
-                </td>
-                <td className="py-2 px-4">
-                  <button
-                    onClick={() => handleEdit(department)}
-                    className="mr-2 px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(department.id)}
-                    className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
+      
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-md">
+          {error}
+        </div>
+      )}
+      
+      {showForm && (
+        <Card className="mb-6">
+          <CardContent className="p-6">
+            <h2 className="text-xl font-semibold mb-4">
+              {editingId ? 'Edit Department' : 'Add New Department'}
+            </h2>
+            
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Department Name</label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">Department Code</label>
+                  <input
+                    type="text"
+                    name="department_code"
+                    value={formData.department_code}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                  />
+                </div>
+                
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-1">Description</label>
+                  <textarea
+                    name="description"
+                    value={formData.description}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-300 rounded-md h-24"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">Department Manager</label>
+                  <select
+                    name="manager_id"
+                    value={formData.manager_id || ''}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="">Select Manager</option>
+                    {employees.map(emp => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.first_name} {emp.last_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">Status</label>
+                  <select
+                    name="is_active"
+                    value={formData.is_active.toString()}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="true">Active</option>
+                    <option value="false">Inactive</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    resetForm()
+                    setShowForm(false)
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" variant="default">
+                  {editingId ? 'Update Department' : 'Add Department'}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+      
+      {loading ? (
+        <div className="flex justify-center p-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent"></div>
+        </div>
+      ) : filteredDepartments.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full bg-white rounded-lg overflow-hidden">
+            <thead className="bg-secondary/10">
+              <tr>
+                <th className="py-3 px-4 text-left">Name</th>
+                <th className="py-3 px-4 text-left">Code</th>
+                <th className="py-3 px-4 text-left">Manager</th>
+                <th className="py-3 px-4 text-left">Status</th>
+                <th className="py-3 px-4 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {filteredDepartments.map(department => (
+                <tr key={department.id} className="hover:bg-secondary/5">
+                  <td className="py-3 px-4">{department.name}</td>
+                  <td className="py-3 px-4">{department.department_code || '-'}</td>
+                  <td className="py-3 px-4">{getManagerName(department.manager_id)}</td>
+                  <td className="py-3 px-4">
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      department.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {department.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEdit(department)}
+                      >
+                        Edit
+                      </Button>
+                      
+                      {isAdmin && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-error hover:bg-error/10"
+                          onClick={() => handleDelete(department.id)}
+                        >
+                          Delete
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <p className="text-gray-500">No departments found.</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
-  );
+  )
 }

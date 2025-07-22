@@ -1,210 +1,192 @@
-# app/scripts/seed_data.py
-from sqlalchemy import insert, text, select
-from datetime import datetime, date, timedelta
-import random
-import string
+# Path: Backend/App/scripts/seed_data.py
+from datetime import datetime
+from ..database.database import get_db
+from ..models.reflected_models import users, roles, departments, permissions, user_permissions
+from ..utils.auth_utils import hash_password
+from sqlalchemy import insert, select
 
-from ..database.database import SessionLocal
-from ..models.reflected_models import (
-    departments, employees, users, 
-    tasks, customer_complaints, pre_orders
-)
-from ..utils.security import get_password_hash
-
-def generate_unique_id(length=4):
-    """Generate a random ID of specified length"""
-    return ''.join(random.choices(string.digits, k=length))
-
-def seed_database():
-    """Populate database with initial test data"""
-    print("Starting database seeding...")
+def seed_roles():
+    db = next(get_db())
     
-    with SessionLocal() as db:
-        # Create departments
-        departments_data = [
-            {"name": "Bakery", "department_code": "BAK", "description": "Bakery department", "is_active": True},
-            {"name": "Produce", "department_code": "PRD", "description": "Fresh produce department", "is_active": True},
-            {"name": "Meat", "department_code": "MET", "description": "Meat department", "is_active": True},
-            {"name": "Dairy", "department_code": "DAI", "description": "Dairy department", "is_active": True},
-            {"name": "Management", "department_code": "MGT", "description": "Management department", "is_active": True}
-        ]
-        
-        department_ids = []
-        for dept in departments_data:
-            # Check if department already exists using SQLAlchemy Core
-            existing = db.execute(
-                select(departments.c.id).where(departments.c.name == dept["name"])
-            ).fetchone()
-            
-            if not existing:
-                result = db.execute(insert(departments).values(**dept))
-                db.commit()
-                department_ids.append(result.inserted_primary_key[0])
-            else:
-                department_ids.append(existing[0])
-        
-        print(f"Created {len(department_ids)} departments")
-        
-        # Create employees
-        employees_data = [
-            {"employee_id": "1001", "first_name": "John", "last_name": "Admin", "email": "admin@example.com", 
-             "phone": "555-1234", "department_id": department_ids[4], "position": "Admin", "status": "active", "hire_date": date.today() - timedelta(days=365)},
-            {"employee_id": "1002", "first_name": "Jane", "last_name": "Manager", "email": "manager@example.com", 
-             "phone": "555-5678", "department_id": department_ids[4], "position": "Manager", "status": "active", "hire_date": date.today() - timedelta(days=300)},
-            {"employee_id": "1003", "first_name": "Bob", "last_name": "Baker", "email": "baker@example.com", 
-             "phone": "555-9012", "department_id": department_ids[0], "position": "Staff", "status": "active", "hire_date": date.today() - timedelta(days=200)},
-            {"employee_id": "1004", "first_name": "Alice", "last_name": "Produce", "email": "produce@example.com", 
-             "phone": "555-3456", "department_id": department_ids[1], "position": "Staff", "status": "active", "hire_date": date.today() - timedelta(days=150)},
-            {"employee_id": "1005", "first_name": "Charlie", "last_name": "Butcher", "email": "butcher@example.com", 
-             "phone": "555-7890", "department_id": department_ids[2], "position": "Staff", "status": "active", "hire_date": date.today() - timedelta(days=100)}
-        ]
-        
-        employee_ids = []
-        for emp in employees_data:
-            # Check if employee already exists using SQLAlchemy Core
-            existing = db.execute(
-                select(employees.c.id).where(employees.c.employee_id == emp["employee_id"])
-            ).fetchone()
-            
-            if not existing:
-                result = db.execute(insert(employees).values(**emp))
-                db.commit()
-                employee_ids.append(result.inserted_primary_key[0])
-            else:
-                employee_ids.append(existing[0])
-        
-        print(f"Created {len(employee_ids)} employees")
-        
-        # Create users
-        users_data = [
-            {"username": "admin", "password_hash": get_password_hash("admin123"), "user_type": "staff", 
-             "employee_id": employee_ids[0], "department_id": department_ids[4], "role": "admin", "is_active": True},
-            {"username": "manager", "password_hash": get_password_hash("manager123"), "user_type": "staff", 
-             "employee_id": employee_ids[1], "department_id": department_ids[4], "role": "manager", "is_active": True},
-            {"username": "baker", "password_hash": get_password_hash("baker123"), "user_type": "staff", 
-             "employee_id": employee_ids[2], "department_id": department_ids[0], "role": "staff", "is_active": True},
-            {"username": "produce", "password_hash": get_password_hash("produce123"), "user_type": "staff", 
-             "employee_id": employee_ids[3], "department_id": department_ids[1], "role": "staff", "is_active": True},
-            {"username": "butcher", "password_hash": get_password_hash("butcher123"), "user_type": "staff", 
-             "employee_id": employee_ids[4], "department_id": department_ids[2], "role": "staff", "is_active": True}
-        ]
-        
-        for user_data in users_data:
-            # Check if user already exists using SQLAlchemy Core
-            existing = db.execute(
-                select(users.c.id).where(users.c.username == user_data["username"])
-            ).fetchone()
-            
-            if not existing:
-                db.execute(insert(users).values(**user_data))
-                db.commit()
-        
-        print("Created users")
-        
-        # Create tasks
-        task_statuses = ["pending", "in_progress", "completed"]
-        task_titles = [
-            "Clean display cases", "Restock shelves", "Inventory check", "Customer order preparation",
-            "Equipment cleaning", "Weekly report", "Monthly inspection", "Training new staff",
-            "Quality check", "Maintenance request"
-        ]
-        
-        for i in range(20):
-            due_date = date.today() + timedelta(days=random.randint(-5, 14))
-            status = random.choice(task_statuses)
-            department_id = random.choice(department_ids)
-            assigned_to = random.choice(employee_ids)
-            
-            task_data = {
-                "title": random.choice(task_titles),
-                "description": f"Task description {i+1}",
-                "department_id": department_id,
-                "assigned_by": employee_ids[0],  # Admin assigns all tasks
-                "assigned_to": assigned_to,
-                "assigned_to_department": department_id,
-                "is_urgent": random.choice([True, False]),
-                "due_date": due_date,
-                "status": status,
-                "is_completed": status == "completed",
-                "created_at": datetime.now() - timedelta(days=random.randint(0, 30))
-            }
-            
-            if status == "completed":
-                task_data["completed_at"] = datetime.now() - timedelta(days=random.randint(0, 5))
-            
-            db.execute(insert(tasks).values(**task_data))
-        
-        db.commit()
-        print("Created 20 tasks")
-        
-        # Create customer complaints
-        complaint_types = ["Product Quality", "Service", "Pricing", "Cleanliness", "Staff Behavior"]
-        complaint_statuses = ["open", "in_progress", "resolved"]
-        
-        for i in range(10):
-            status = random.choice(complaint_statuses)
-            
-            complaint_data = {
-                "customer_name": f"Customer {i+1}",
-                "customer_email": f"customer{i+1}@example.com",
-                "customer_phone": f"555-{1000+i}",
-                "complaint_type": random.choice(complaint_types),
-                "description": f"Complaint description {i+1}",
-                "department_involved": random.choice(department_ids),
-                "reported_by": random.choice(employee_ids),
-                "severity": random.choice(["low", "medium", "high"]),
-                "status": status,
-                "resolution": "Issue resolved" if status == "resolved" else None,
-                "created_at": datetime.now() - timedelta(days=random.randint(0, 30))
-            }
-            
-            if status == "resolved":
-                complaint_data["resolved_at"] = datetime.now() - timedelta(days=random.randint(0, 5))
-            
-            db.execute(insert(customer_complaints).values(**complaint_data))
-        
-        db.commit()
-        print("Created 10 customer complaints")
-        
-        # Create pre-orders
-        order_types = ["Cake", "Specialty Bread", "Party Tray", "Custom Cut Meat", "Gift Basket"]
-        order_statuses = ["pending", "processing", "ready", "completed"]
-        
-        for i in range(15):
-            status = random.choice(order_statuses)
-            
-            preorder_data = {
-                "customer_name": f"Customer {i+1}",
-                "customer_email": f"customer{i+1}@example.com",
-                "customer_phone": f"555-{2000+i}",
-                "order_type": random.choice(order_types),
-                "description": f"Pre-order description {i+1}",
-                "target_department": random.choice(department_ids[:3]),  # Only first 3 departments for pre-orders
-                "requested_by": random.choice(employee_ids),
-                "assigned_to": random.choice(employee_ids[:3]),
-                "quantity": random.randint(1, 10),
-                "estimated_price": round(random.uniform(10.0, 100.0), 2),
-                "pickup_date": date.today() + timedelta(days=random.randint(1, 14)),
-                "special_instructions": f"Special instructions for order {i+1}",
-                "status": status,
-                "created_at": datetime.now() - timedelta(days=random.randint(0, 30))
-            }
-            
-            if status == "completed":
-                preorder_data["completed_at"] = datetime.now() - timedelta(days=random.randint(0, 5))
-            
-            db.execute(insert(pre_orders).values(**preorder_data))
-        
-        db.commit()
-        print("Created 15 pre-orders")
-        
-        print("Database seeding completed successfully!")
-        print("\nTest Credentials:")
-        print("Username: admin | Password: admin123 | Role: admin")
-        print("Username: manager | Password: manager123 | Role: manager")
-        print("Username: baker | Password: baker123 | Role: staff")
-        print("Username: produce | Password: produce123 | Role: staff")
-        print("Username: butcher | Password: butcher123 | Role: staff")
+    # Check if roles already exist
+    existing_roles = db.execute(select(roles)).fetchall()
+    if existing_roles:
+        print("Roles already exist. Skipping role seeding.")
+        return
+    
+    # Define roles
+    roles_data = [
+        {"name": "admin", "description": "Store administrator"},
+        {"name": "manager", "description": "Department manager"},
+        {"name": "lead", "description": "Department lead"},
+        {"name": "staff", "description": "Regular staff member"}
+    ]
+    
+    for role_data in roles_data:
+        db.execute(insert(roles).values(**role_data))
+    
+    db.commit()
+    print("Roles seeded successfully.")
 
-if __name__ == "__main__":
-    seed_database()
+def seed_departments():
+    db = next(get_db())
+    
+    # Check if departments already exist
+    existing_departments = db.execute(select(departments)).fetchall()
+    if existing_departments:
+        print("Departments already exist. Skipping department seeding.")
+        return
+    
+    # Define departments
+    departments_data = [
+        {"name": "Grocery", "description": "Grocery department"},
+        {"name": "Produce", "description": "Produce department"},
+        {"name": "Bakery", "description": "Bakery department"},
+        {"name": "Meat", "description": "Meat department"},
+        {"name": "Cash", "description": "Cashier department"},
+        {"name": "Prepared Foods", "description": "Prepared foods department"},
+        {"name": "Dairy", "description": "Dairy department"},
+        {"name": "Bulk", "description": "Bulk foods department"}
+    ]
+    
+    for dept_data in departments_data:
+        db.execute(insert(departments).values(**dept_data))
+    
+    db.commit()
+    print("Departments seeded successfully.")
+
+def seed_permissions():
+    db = next(get_db())
+    
+    # Check if permissions already exist
+    existing_permissions = db.execute(select(permissions)).fetchall()
+    if existing_permissions:
+        print("Permissions already exist. Skipping permission seeding.")
+        return
+    
+    # Define permissions
+    permissions_data = [
+        {"name": "view_employees", "description": "View employee records"},
+        {"name": "add_employees", "description": "Add new employee records"},
+        {"name": "edit_employees", "description": "Edit employee records"},
+        {"name": "delete_employees", "description": "Delete employee records"},
+        
+        {"name": "view_tasks", "description": "View tasks"},
+        {"name": "add_tasks", "description": "Add new tasks"},
+        {"name": "edit_tasks", "description": "Edit tasks"},
+        {"name": "delete_tasks", "description": "Delete tasks"},
+        
+        {"name": "view_departments", "description": "View departments"},
+        {"name": "add_departments", "description": "Add new departments"},
+        {"name": "edit_departments", "description": "Edit departments"},
+        {"name": "delete_departments", "description": "Delete departments"},
+        
+        {"name": "view_inventory", "description": "View inventory"},
+        {"name": "add_inventory", "description": "Add inventory items"},
+        {"name": "edit_inventory", "description": "Edit inventory items"},
+        {"name": "delete_inventory", "description": "Delete inventory items"},
+        
+        {"name": "view_equipment", "description": "View equipment"},
+        {"name": "add_equipment", "description": "Add equipment"},
+        {"name": "edit_equipment", "description": "Edit equipment"},
+        {"name": "delete_equipment", "description": "Delete equipment"},
+        
+        {"name": "view_users", "description": "View user accounts"},
+        {"name": "add_users", "description": "Add user accounts"},
+        {"name": "edit_users", "description": "Edit user accounts"},
+        {"name": "delete_users", "description": "Delete user accounts"},
+        
+        {"name": "view_announcements", "description": "View announcements"},
+        {"name": "add_announcements", "description": "Add announcements"},
+        {"name": "edit_announcements", "description": "Edit announcements"},
+        {"name": "delete_announcements", "description": "Delete announcements"},
+        
+        {"name": "view_complaints", "description": "View complaints"},
+        {"name": "add_complaints", "description": "Add complaints"},
+        {"name": "edit_complaints", "description": "Edit complaints"},
+        {"name": "delete_complaints", "description": "Delete complaints"},
+        
+        {"name": "view_permissions", "description": "View permissions"},
+        {"name": "edit_permissions", "description": "Edit permissions"},
+        
+        {"name": "view_preorders", "description": "View preorders"},
+        {"name": "add_preorders", "description": "Add preorders"},
+        {"name": "edit_preorders", "description": "Edit preorders"},
+        {"name": "delete_preorders", "description": "Delete preorders"},
+        
+        {"name": "view_temperature", "description": "View temperature logs"},
+        {"name": "add_temperature", "description": "Add temperature logs"},
+        
+        {"name": "view_training", "description": "View training records"},
+        {"name": "add_training", "description": "Add training records"},
+        {"name": "edit_training", "description": "Edit training records"}
+    ]
+    
+    for perm_data in permissions_data:
+        db.execute(insert(permissions).values(**perm_data))
+    
+    db.commit()
+    print("Permissions seeded successfully.")
+
+def seed_admin_users():
+    db = next(get_db())
+    
+    # Check if admin users already exist
+    existing_admins = db.execute(
+        select(users).where(users.c.username.in_(["store_manager", "assistant_manager1", "assistant_manager2"]))
+    ).fetchall()
+    
+    if existing_admins and len(existing_admins) == 3:
+        print("Admin users already exist. Skipping admin seeding.")
+        return
+    
+    # Get admin role ID
+    admin_role = db.execute(
+        select(roles.c.id).where(roles.c.name == "admin")
+    ).fetchone()
+    
+    if not admin_role:
+        print("Admin role not found. Seeding roles first.")
+        seed_roles()
+        admin_role = db.execute(
+            select(roles.c.id).where(roles.c.name == "admin")
+        ).fetchone()
+        
+    admin_role_id = admin_role[0]
+    
+    # Admin users data
+    admin_users = [
+        {
+            "username": "store_manager",
+            "password": hash_password("storemanager123"),
+            "email": "store.manager@grocerystore.com",
+            "name": "Store Manager",
+            "role_id": admin_role_id,
+            "is_active": True,
+            "created_at": datetime.now()
+        },
+        {
+            "username": "assistant_manager1",
+            "password": hash_password("assistant1pass"),
+            "email": "assistant1@grocerystore.com",
+            "name": "Assistant Manager 1",
+            "role_id": admin_role_id,
+            "is_active": True,
+            "created_at": datetime.now()
+        },
+        {
+            "username": "assistant_manager2",
+            "password": hash_password("assistant2pass"),
+            "email": "assistant2@grocerystore.com",
+            "name": "Assistant Manager 2",
+            "role_id": admin_role_id,
+            "is_active": True,
+            "created_at": datetime.now()
+        }
+    ]
+    
+    for user_data in admin_users:
+        db.execute(insert(users).values(**user_data))
+    
+    db.commit()
+    print("Admin users seeded successfully.")

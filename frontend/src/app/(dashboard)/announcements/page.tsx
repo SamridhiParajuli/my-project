@@ -20,67 +20,67 @@ interface Announcement {
   created_at: string;
   expires_at?: string;
   target_roles?: string[];
-}
-
-interface AnnouncementFormData {
-  title: string;
-  message: string;
-  announcement_type: string;
-  target_department: number | null;
-  priority: string;
-  expires_at: string;
-  target_roles: string[];
+  target_department_name?: string;
 }
 
 export default function AnnouncementsPage() {
-  const { user, isManager, department } = useAuth()
+  const { user, isManager, isAdmin, department } = useAuth()
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const [unreadAnnouncements, setUnreadAnnouncements] = useState<Announcement[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'all' | 'unread'>('all')
   const [showForm, setShowForm] = useState<boolean>(false)
-  const [formData, setFormData] = useState<AnnouncementFormData>({
+  const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [formData, setFormData] = useState({
     title: '',
     message: '',
     announcement_type: 'general',
-    target_department: null,
+    target_department: user?.department_id || null,
     priority: 'normal',
     expires_at: '',
-    target_roles: []
+    target_roles: [] as string[],
+    is_active: true
   })
   
+  // Fetch announcements on component mount
   useEffect(() => {
-    const fetchAnnouncements = async (): Promise<void> => {
-      try {
-        setLoading(true)
-        const response = await api.get('/announcements')
-        
-        if (response.data && response.data.items) {
-          let announcements = response.data.items as Announcement[]
-          
-          // If not admin, filter announcements
-          if (user && user.role !== 'admin' && user.department_id) {
-            // Include announcements for user's department and store-wide announcements
-            announcements = announcements.filter(a => 
-              !a.target_department || a.target_department === user.department_id
-            )
-          }
-          
-          setAnnouncements(announcements)
-        }
-        setLoading(false)
-      } catch (err) {
-        console.error('Error fetching announcements:', err)
-        setError('Failed to load announcements')
-        setLoading(false)
-      }
-    }
-    
     fetchAnnouncements()
-  }, [user])
+  }, [user, activeTab])
   
+  // Fetch announcements from API
+  const fetchAnnouncements = async () => {
+    try {
+      setLoading(true)
+      
+      // Fetch all announcements
+      const response = await api.get('/announcements', { 
+        params: { is_active: true }
+      })
+      
+      if (response.data && response.data.items) {
+        setAnnouncements(response.data.items)
+      }
+      
+      // Fetch unread announcements specifically for the user
+      const unreadResponse = await api.get('/announcements/unread/me')
+      if (unreadResponse.data) {
+        setUnreadAnnouncements(unreadResponse.data)
+      }
+      
+      setLoading(false)
+    } catch (err: any) {
+      console.error('Error fetching announcements:', err)
+      setError(err.response?.data?.detail || 'Failed to load announcements')
+      setLoading(false)
+    }
+  }
+  
+  // Handle form input changes
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ): void => {
+  ) => {
     const { name, value } = e.target
     
     if (name === 'target_department') {
@@ -93,18 +93,17 @@ export default function AnnouncementsPage() {
     }
   }
   
-  const handleRoleCheckboxChange = (role: string): void => {
+  // Handle role checkbox changes
+  const handleRoleCheckboxChange = (role: string) => {
     setFormData(prev => {
       const currentRoles = [...prev.target_roles]
       
       if (currentRoles.includes(role)) {
-        // Remove role if already selected
         return {
           ...prev,
           target_roles: currentRoles.filter(r => r !== role)
         }
       } else {
-        // Add role if not selected
         return {
           ...prev,
           target_roles: [...currentRoles, role]
@@ -113,7 +112,42 @@ export default function AnnouncementsPage() {
     })
   }
   
-  const handleCreateAnnouncement = async (): Promise<void> => {
+  // Set up edit form with announcement data
+  const handleEdit = (announcement: Announcement) => {
+    setEditingAnnouncement(announcement)
+    setFormData({
+      title: announcement.title,
+      message: announcement.message,
+      announcement_type: announcement.announcement_type,
+      target_department: announcement.target_department || null,
+      priority: announcement.priority || 'normal',
+      expires_at: announcement.expires_at ? new Date(announcement.expires_at).toISOString().split('T')[0] : '',
+      target_roles: announcement.target_roles || [],
+      is_active: announcement.is_active
+    })
+    setShowForm(true)
+    setError(null)
+  }
+  
+  // Cancel editing or creating
+  const handleCancel = () => {
+    setShowForm(false)
+    setEditingAnnouncement(null)
+    setFormData({
+      title: '',
+      message: '',
+      announcement_type: 'general',
+      target_department: user?.department_id || null,
+      priority: 'normal',
+      expires_at: '',
+      target_roles: [],
+      is_active: true
+    })
+    setError(null)
+  }
+  
+  // Submit announcement (create or update)
+  const handleSubmitAnnouncement = async () => {
     try {
       if (!formData.title || !formData.message) {
         setError('Title and message are required')
@@ -125,24 +159,67 @@ export default function AnnouncementsPage() {
         created_by: user?.id
       }
       
-      await api.post('/announcements', payload)
-      setShowForm(false)
-      
-      // Refresh announcements
-      const response = await api.get('/announcements')
-      if (response.data && response.data.items) {
-        setAnnouncements(response.data.items)
+      if (editingAnnouncement) {
+        // Update existing announcement
+        await api.put(`/announcements/${editingAnnouncement.id}`, payload)
+      } else {
+        // Create new announcement
+        await api.post('/announcements', payload)
       }
       
+      // Reset form and state
+      setShowForm(false)
+      setEditingAnnouncement(null)
+      setFormData({
+        title: '',
+        message: '',
+        announcement_type: 'general',
+        target_department: user?.department_id || null,
+        priority: 'normal',
+        expires_at: '',
+        target_roles: [],
+        is_active: true
+      })
+      
+      // Refresh announcements
+      fetchAnnouncements()
       setError(null)
-    } catch (err) {
-      console.error('Error creating announcement:', err)
-      setError('Failed to create announcement')
+    } catch (err: any) {
+      console.error('Error submitting announcement:', err)
+      setError(err.response?.data?.detail || 'Failed to save announcement')
     }
   }
   
-  // Helper function to format date
-  const formatDate = (dateString: string): string => {
+  // Delete announcement
+  const handleDelete = async (id: number) => {
+    try {
+      await api.delete(`/announcements/${id}`)
+      
+      // Refresh announcements
+      fetchAnnouncements()
+      setDeleteConfirmId(null)
+    } catch (err: any) {
+      console.error('Error deleting announcement:', err)
+      setError(err.response?.data?.detail || 'Failed to delete announcement')
+    }
+  }
+  
+  // Mark announcement as read
+  const markAsRead = async (announcementId: number) => {
+    try {
+      await api.post(`/announcements/${announcementId}/read`)
+      
+      // Update unread announcements list
+      setUnreadAnnouncements(prev => 
+        prev.filter(a => a.id !== announcementId)
+      )
+    } catch (err) {
+      console.error('Error marking announcement as read:', err)
+    }
+  }
+  
+  // Format date helper
+  const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString)
       return new Intl.DateTimeFormat('en-US', {
@@ -155,6 +232,11 @@ export default function AnnouncementsPage() {
     }
   }
 
+  // Filter announcements based on active tab
+  const displayAnnouncements = activeTab === 'unread' 
+    ? unreadAnnouncements 
+    : announcements
+
   return (
     <div className="space-y-6">
       <Card>
@@ -162,25 +244,69 @@ export default function AnnouncementsPage() {
           <div className="flex justify-between items-center mb-6">
             <div>
               <h2 className="text-2xl font-semibold">Announcements</h2>
-              <p className="text-dark-600">Important announcements and updates for all staff</p>
+              <p className="text-dark-600">Important announcements and updates for staff</p>
             </div>
-            {isManager && (
-              <Button onClick={() => setShowForm(!showForm)}>
-                {showForm ? 'Cancel' : '+ New Announcement'}
-              </Button>
-            )}
+            <div className="flex gap-2">
+              {(isManager || isAdmin) && (
+                <Button onClick={() => {
+                  setShowForm(!showForm)
+                  setEditingAnnouncement(null)
+                  if (!showForm) {
+                    setFormData({
+                      title: '',
+                      message: '',
+                      announcement_type: 'general',
+                      target_department: user?.department_id || null,
+                      priority: 'normal',
+                      expires_at: '',
+                      target_roles: [],
+                      is_active: true
+                    })
+                  }
+                }}>
+                  {showForm && !editingAnnouncement ? 'Cancel' : '+ New Announcement'}
+                </Button>
+              )}
+            </div>
           </div>
           
-          {/* Create announcement form */}
+          {/* Tabs */}
+          <div className="flex border-b border-cream-200 mb-6">
+            <button
+              className={`px-4 py-2 font-medium text-sm ${
+                activeTab === 'all' 
+                  ? 'border-b-2 border-accent-blue text-accent-blue' 
+                  : 'text-dark-600 hover:text-dark-800'
+              }`}
+              onClick={() => setActiveTab('all')}
+            >
+              All Announcements
+            </button>
+            <button
+              className={`px-4 py-2 font-medium text-sm ${
+                activeTab === 'unread' 
+                  ? 'border-b-2 border-accent-blue text-accent-blue' 
+                  : 'text-dark-600 hover:text-dark-800'
+              }`}
+              onClick={() => setActiveTab('unread')}
+            >
+              Unread ({unreadAnnouncements.length})
+            </button>
+          </div>
+          
+          {/* Error display */}
+          {error && (
+            <div className="mb-4 p-3 bg-accent-red/10 text-accent-red rounded-lg">
+              {error}
+            </div>
+          )}
+          
+          {/* Create/Edit announcement form */}
           {showForm && (
             <div className="mb-6 p-4 border border-cream-200 rounded-lg">
-              <h3 className="text-lg font-semibold mb-4">Create New Announcement</h3>
-              
-              {error && (
-                <div className="mb-4 p-3 bg-accent-red/10 text-accent-red rounded-lg">
-                  {error}
-                </div>
-              )}
+              <h3 className="text-lg font-semibold mb-4">
+                {editingAnnouncement ? 'Edit Announcement' : 'Create New Announcement'}
+              </h3>
               
               <div className="space-y-4">
                 {/* Title */}
@@ -191,7 +317,8 @@ export default function AnnouncementsPage() {
                     name="title"
                     value={formData.title}
                     onChange={handleInputChange}
-                    className="form-input w-full"
+                    className="form-input w-full p-2 border border-cream-300 rounded-md"
+                    required
                   />
                 </div>
                 
@@ -203,7 +330,8 @@ export default function AnnouncementsPage() {
                     value={formData.message}
                     onChange={handleInputChange}
                     rows={4}
-                    className="form-input w-full"
+                    className="form-input w-full p-2 border border-cream-300 rounded-md"
+                    required
                   ></textarea>
                 </div>
                 
@@ -215,7 +343,7 @@ export default function AnnouncementsPage() {
                       name="announcement_type"
                       value={formData.announcement_type}
                       onChange={handleInputChange}
-                      className="form-input w-full"
+                      className="form-input w-full p-2 border border-cream-300 rounded-md"
                     >
                       <option value="general">General</option>
                       <option value="policy">Policy Change</option>
@@ -232,7 +360,7 @@ export default function AnnouncementsPage() {
                       name="priority"
                       value={formData.priority}
                       onChange={handleInputChange}
-                      className="form-input w-full"
+                      className="form-input w-full p-2 border border-cream-300 rounded-md"
                     >
                       <option value="low">Low</option>
                       <option value="normal">Normal</option>
@@ -240,23 +368,25 @@ export default function AnnouncementsPage() {
                     </select>
                   </div>
                   
-                  {/* Department */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Target Department</label>
-                    <select
-                      name="target_department"
-                      value={formData.target_department === null ? '' : formData.target_department.toString()}
-                      onChange={handleInputChange}
-                      className="form-input w-full"
-                    >
-                      <option value="">All Departments</option>
-                      {user?.department_id && (
-                        <option value={user.department_id.toString()}>
-                          {department?.name || `Department #${user.department_id}`}
-                        </option>
-                      )}
-                    </select>
-                  </div>
+                  {/* Department - Only visible to admins and managers */}
+                  {(isAdmin || isManager) && (
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Target Department</label>
+                      <select
+                        name="target_department"
+                        value={formData.target_department === null ? '' : formData.target_department.toString()}
+                        onChange={handleInputChange}
+                        className="form-input w-full p-2 border border-cream-300 rounded-md"
+                      >
+                        <option value="">All Departments</option>
+                        {department && (
+                          <option value={department.id.toString()}>
+                            {department.name}
+                          </option>
+                        )}
+                      </select>
+                    </div>
+                  )}
                   
                   {/* Expiration */}
                   <div>
@@ -266,33 +396,44 @@ export default function AnnouncementsPage() {
                       name="expires_at"
                       value={formData.expires_at}
                       onChange={handleInputChange}
-                      className="form-input w-full"
+                      className="form-input w-full p-2 border border-cream-300 rounded-md"
                     />
                   </div>
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-medium mb-1">Target Roles</label>
-                  <div className="flex flex-wrap gap-4">
-                    {['admin', 'manager', 'lead', 'staff'].map(role => (
-                      <div key={role} className="flex items-center">
-                        <input
-                          type="checkbox"
-                          id={`role-${role}`}
-                          checked={formData.target_roles.includes(role)}
-                          onChange={() => handleRoleCheckboxChange(role)}
-                          className="mr-2"
-                        />
-                        <label htmlFor={`role-${role}`}>{role.charAt(0).toUpperCase() + role.slice(1)}</label>
-                      </div>
-                    ))}
+                {/* Target Roles - Only visible to admins and managers */}
+                {(isAdmin || isManager) && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Target Roles</label>
+                    <div className="flex flex-wrap gap-4">
+                      {['admin', 'manager', 'lead', 'staff'].map(role => (
+                        <div key={role} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id={`role-${role}`}
+                            checked={formData.target_roles.includes(role)}
+                            onChange={() => handleRoleCheckboxChange(role)}
+                            className="mr-2"
+                          />
+                          <label htmlFor={`role-${role}`}>{role.charAt(0).toUpperCase() + role.slice(1)}</label>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-dark-500 mt-1">Leave empty to target all roles</p>
                   </div>
-                  <p className="text-xs text-dark-500 mt-1">Leave empty to target all roles</p>
-                </div>
+                )}
                 
-                <div className="flex justify-end">
-                  <Button onClick={handleCreateAnnouncement}>
-                    Create Announcement
+                <div className="flex justify-end gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={handleCancel}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleSubmitAnnouncement}
+                  >
+                    {editingAnnouncement ? 'Update Announcement' : 'Create Announcement'}
                   </Button>
                 </div>
               </div>
@@ -304,8 +445,8 @@ export default function AnnouncementsPage() {
             <div className="text-center py-8">Loading announcements...</div>
           ) : (
             <div className="space-y-4">
-              {announcements.length > 0 ? (
-                announcements.map(announcement => (
+              {displayAnnouncements.length > 0 ? (
+                displayAnnouncements.map(announcement => (
                   <Card key={announcement.id} className="overflow-hidden border border-cream-200">
                     <div className={`h-1 ${
                       announcement.priority === 'high' 
@@ -330,9 +471,13 @@ export default function AnnouncementsPage() {
                           
                           {announcement.target_department && (
                             <span className="inline-block px-2 py-1 text-xs rounded-full bg-accent-blue/10 text-accent-blue">
-                              {announcement.target_department === user?.department_id 
-                                ? department?.name || `Your Department` 
-                                : `Dept ${announcement.target_department}`}
+                              {announcement.target_department_name || `Dept ${announcement.target_department}`}
+                            </span>
+                          )}
+                          
+                          {announcement.target_roles && announcement.target_roles.length > 0 && (
+                            <span className="inline-block px-2 py-1 text-xs rounded-full bg-primary/10 text-primary">
+                              For: {announcement.target_roles.join(', ')}
                             </span>
                           )}
                         </div>
@@ -340,12 +485,71 @@ export default function AnnouncementsPage() {
                       <p className="text-dark-600 mb-3">{announcement.message}</p>
                       <div className="flex justify-between items-center text-sm text-dark-500">
                         <span>Posted: {formatDate(announcement.created_at)}</span>
+                        
+                        <div className="flex gap-2">
+                          {/* Mark as read button - Only for unread announcements */}
+                          {activeTab === 'unread' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => markAsRead(announcement.id)}
+                            >
+                              Mark as Read
+                            </Button>
+                          )}
+                          
+                          {/* Edit/Delete buttons - Only for managers/admins */}
+                          {(isManager || isAdmin) && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEdit(announcement)}
+                              >
+                                Edit
+                              </Button>
+                              
+                              {/* Delete with confirmation */}
+                              {deleteConfirmId === announcement.id ? (
+                                <div className="flex gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => handleDelete(announcement.id)}
+                                  >
+                                    Confirm
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setDeleteConfirmId(null)}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-accent-red"
+                                  onClick={() => setDeleteConfirmId(announcement.id)}
+                                >
+                                  Delete
+                                </Button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
                     </CardBody>
                   </Card>
                 ))
               ) : (
-                <div className="text-center py-8 text-dark-600">No announcements found</div>
+                <div className="text-center py-8 text-dark-600">
+                  {activeTab === 'unread' 
+                    ? 'No unread announcements' 
+                    : 'No announcements found'}
+                </div>
               )}
             </div>
           )}

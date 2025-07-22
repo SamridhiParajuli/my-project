@@ -75,9 +75,6 @@ def get_announcements(
         else:
             query = query.order_by(sort_column.desc())
     
-    # Get total count for pagination
-    total_count = db.execute(count_query).scalar()
-    
     # Apply pagination
     query = query.offset(skip).limit(limit)
     
@@ -85,9 +82,29 @@ def get_announcements(
     result = db.execute(query).fetchall()
     announcements_list = rows_to_list(result)
     
+    # Post-query filtering based on user role and department
+    filtered_announcements = []
+    for announcement in announcements_list:
+        # Check if announcement has target roles and if user's role is in the target roles
+        if announcement["target_roles"] and len(announcement["target_roles"]) > 0:
+            if current_user["role"] not in announcement["target_roles"]:
+                continue  # Skip this announcement
+        
+        # Check if announcement targets a specific department
+        if announcement["target_department"] is not None:
+            # Skip if not in the targeted department and not an admin
+            if current_user["role"] != "admin" and announcement["target_department"] != current_user.get("department_id"):
+                continue
+        
+        # If we get here, the announcement is relevant to this user
+        filtered_announcements.append(announcement)
+    
+    # Get total count for pagination (before filtering)
+    total_count = db.execute(count_query).scalar()
+    
     # Return with pagination metadata
     return {
-        "items": announcements_list,
+        "items": filtered_announcements,
         "pagination": {
             "total": total_count,
             "limit": limit,
@@ -357,14 +374,7 @@ def get_unread_announcements(
         )
     )
     
-    if employee["position"]:
-        # If target_roles contains the employee's position
-        from sqlalchemy import func
-        announcements_query = announcements_query.where(
-            (announcements.c.target_roles.is_(None)) |
-            (func.array_position(announcements.c.target_roles, employee["position"]) > 0)
-        )
-    
+    # Execute the query first since we need to do post-filtering based on role
     all_announcements = db.execute(announcements_query).fetchall()
     all_announcements = rows_to_list(all_announcements)
     
@@ -376,28 +386,36 @@ def get_unread_announcements(
     # Create a set of IDs of read announcements for quick lookup
     read_announcement_ids = {read["announcement_id"] for read in read_announcements}
     
-    # Filter out announcements that have been read
+    # Filter out announcements that have been read and filter by user role
     unread_announcements = []
     for announcement in all_announcements:
-        if announcement["id"] not in read_announcement_ids:
-            # Get the creator's name
-            creator_query = select(employees).where(employees.c.id == announcement["created_by"])
-            creator = db.execute(creator_query).fetchone()
+        # Skip if already read
+        if announcement["id"] in read_announcement_ids:
+            continue
+        
+        # Check if announcement has target roles and if user's role is in the target roles
+        if announcement["target_roles"] and len(announcement["target_roles"]) > 0:
+            if current_user["role"] not in announcement["target_roles"]:
+                continue  # Skip this announcement
+        
+        # Get the creator's name
+        creator_query = select(employees).where(employees.c.id == announcement["created_by"])
+        creator = db.execute(creator_query).fetchone()
+        
+        if creator:
+            creator = row_to_dict(creator)
+            announcement["creator_name"] = f"{creator['first_name']} {creator['last_name']}"
+        
+        # Get the target department name if applicable
+        if announcement["target_department"]:
+            dept_query = select(departments).where(departments.c.id == announcement["target_department"])
+            dept = db.execute(dept_query).fetchone()
             
-            if creator:
-                creator = row_to_dict(creator)
-                announcement["creator_name"] = f"{creator['first_name']} {creator['last_name']}"
-            
-            # Get the target department name if applicable
-            if announcement["target_department"]:
-                dept_query = select(departments).where(departments.c.id == announcement["target_department"])
-                dept = db.execute(dept_query).fetchone()
-                
-                if dept:
-                    dept = row_to_dict(dept)
-                    announcement["target_department_name"] = dept["name"]
-            
-            unread_announcements.append(announcement)
+            if dept:
+                dept = row_to_dict(dept)
+                announcement["target_department_name"] = dept["name"]
+        
+        unread_announcements.append(announcement)
     
     # Sort by priority and then by creation date (newest first)
     priority_order = {"high": 0, "normal": 1, "low": 2}

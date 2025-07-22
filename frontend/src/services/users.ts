@@ -28,6 +28,7 @@ export interface UsersParams {
   department_id?: number
   role?: string
   is_active?: boolean
+  include_inactive?: boolean
   sort?: string
   order?: string
   search?: string
@@ -71,6 +72,20 @@ export const updateUser = async (id: number, userData: UserUpdate) => {
 export const deleteUser = async (id: number) => {
   const response = await api.delete(`/auth/users/${id}`)
   return response.data
+}
+
+/**
+ * Permanently delete a user - This will completely remove the user from the database
+ * CAUTION: This action cannot be undone
+ */
+export const permanentDeleteUser = async (id: number) => {
+  try {
+    const response = await api.delete(`/auth/users/${id}/permanent`)
+    return response.data
+  } catch (error) {
+    console.error('Error in permanentDeleteUser:', error)
+    throw error
+  }
 }
 
 /**

@@ -3,10 +3,20 @@ export interface User {
   id: number;
   username: string;
   user_type: string;
-  department_id: number | null;
+  name?: string;
+  email?: string;
+  department_id?: number | null;
   employee_id: number | null;
   role: string;
   is_active: boolean;
+}
+
+export interface AuthContextType {
+  user: User | null;
+  isLoading: boolean; // Make sure isLoading is defined
+  login: (username: string, password: string) => Promise<void>;
+  logout: () => void;
+  // Add any other auth functions you have
 }
 
 export interface UserCreate {

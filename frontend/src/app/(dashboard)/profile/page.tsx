@@ -1,52 +1,43 @@
-// src/app/(dashboard)/profile/page.tsx (COMPLETE FILE)
 'use client';
 
 import { useEffect, useState } from 'react';
-import { User } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
 import UserProfileView from '@/components/users/UserProfileView';
-
-// Mock data and functions (replace with actual API calls)
-const mockUser: User = {
-  id: 1,
-  username: 'admin',
-  user_type: 'admin',
-  department_id: null,
-  employee_id: null,
-  role: 'admin',
-  is_active: true
-};
-
-async function getUserProfile(): Promise<User> {
-  // Replace with actual API call
-  return Promise.resolve(mockUser);
-}
+import { Card, CardContent } from '@/components/ui/Card';
 
 export default function ProfilePage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, employee, department, loading } = useAuth();
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const userData = await getUserProfile();
-        // Ensure is_active is always a boolean to match the User type
-        setUser({
-          ...userData,
-          is_active: userData.is_active === undefined ? true : userData.is_active
-        });
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching user profile:', error);
-        setLoading(false);
-      }
-    };
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent"></div>
+      </div>
+    );
+  }
+  
+  if (!user) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="p-6 text-center">
+            <h2 className="text-lg font-medium mb-2">Not Logged In</h2>
+            <p className="text-gray-600">You need to be logged in to view your profile.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
-    fetchUser();
-  }, []);
+  // Get the full name from employee if available
+  const getFullName = () => {
+    if (employee) {
+      return `${employee.first_name} ${employee.last_name}`;
+    }
+    return user.username;
+  };
 
-  if (loading) return <div>Loading...</div>;
-  if (!user) return <div>Unable to load profile</div>;
-
+  // Now user from useAuth() is passed directly to UserProfileView
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">My Profile</h1>

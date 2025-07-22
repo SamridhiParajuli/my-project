@@ -1,11 +1,11 @@
 # app/routers/tasks.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import select, insert, update, delete, func, or_
+from sqlalchemy import select, insert, update, delete, func, or_, and_
 from typing import List, Optional, Dict
 from datetime import datetime
 from ..database.database import get_db
-from ..models.reflected_models import tasks
+from ..models.reflected_models import tasks, employees, departments
 from ..schemas import schemas
 from ..utils.auth_utils import get_current_active_user
 from ..utils.roles import admin_only, manager_or_admin
@@ -23,6 +23,7 @@ def get_tasks(
     limit: int = 20, 
     department_id: Optional[int] = None,
     assigned_to: Optional[int] = None,
+    assigned_to_department: Optional[int] = None,
     status: Optional[str] = None,
     is_urgent: Optional[bool] = None,
     sort: str = "created_at",
@@ -31,22 +32,38 @@ def get_tasks(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_active_user)
 ):
-    # Base query
-    query = select(tasks)
+    # Base query with joins to get names
+    base_query = select(
+        tasks,
+        employees.c.first_name.label("assigned_to_first_name"),
+        employees.c.last_name.label("assigned_to_last_name"),
+        departments.c.name.label("department_name")
+    ).select_from(
+        tasks.outerjoin(
+            employees, tasks.c.assigned_to == employees.c.id
+        ).outerjoin(
+            departments, tasks.c.department_id == departments.c.id
+        )
+    )
+    
+    # Count query for pagination
     count_query = select(func.count()).select_from(tasks)
     
     # Add filters if provided
     if department_id:
-        query = query.where(tasks.c.department_id == department_id)
+        base_query = base_query.where(tasks.c.department_id == department_id)
         count_query = count_query.where(tasks.c.department_id == department_id)
     if assigned_to:
-        query = query.where(tasks.c.assigned_to == assigned_to)
+        base_query = base_query.where(tasks.c.assigned_to == assigned_to)
         count_query = count_query.where(tasks.c.assigned_to == assigned_to)
+    if assigned_to_department:
+        base_query = base_query.where(tasks.c.assigned_to_department == assigned_to_department)
+        count_query = count_query.where(tasks.c.assigned_to_department == assigned_to_department)
     if status:
-        query = query.where(tasks.c.status == status)
+        base_query = base_query.where(tasks.c.status == status)
         count_query = count_query.where(tasks.c.status == status)
     if is_urgent is not None:
-        query = query.where(tasks.c.is_urgent == is_urgent)
+        base_query = base_query.where(tasks.c.is_urgent == is_urgent)
         count_query = count_query.where(tasks.c.is_urgent == is_urgent)
     
     # Add search if provided
@@ -56,26 +73,65 @@ def get_tasks(
             tasks.c.title.ilike(search_pattern),
             tasks.c.description.ilike(search_pattern)
         )
-        query = query.where(search_filter)
+        base_query = base_query.where(search_filter)
         count_query = count_query.where(search_filter)
     
     # Add sorting
     if hasattr(tasks.c, sort):
         sort_column = getattr(tasks.c, sort)
         if order.lower() == "asc":
-            query = query.order_by(sort_column.asc())
+            base_query = base_query.order_by(sort_column.asc())
         else:
-            query = query.order_by(sort_column.desc())
+            base_query = base_query.order_by(sort_column.desc())
     
     # Get total count for pagination
     total_count = db.execute(count_query).scalar()
     
     # Apply pagination
-    query = query.offset(skip).limit(limit)
+    query = base_query.offset(skip).limit(limit)
     
     # Execute query
     result = db.execute(query).fetchall()
-    tasks_list = rows_to_list(result)
+    
+    # Process the results to add name fields
+    tasks_list = []
+    for row in result:
+        task_dict = {}
+        for key in tasks.columns.keys():
+            task_dict[key] = getattr(row, key)
+        
+        # Add the joined names
+        if row.assigned_to_first_name and row.assigned_to_last_name:
+            task_dict["assigned_to_name"] = f"{row.assigned_to_first_name} {row.assigned_to_last_name}"
+        task_dict["department_name"] = row.department_name
+        
+        tasks_list.append(task_dict)
+    
+    # Add assigned_by names in a separate query to avoid complex joins
+    if tasks_list:
+        # Get all unique assigned_by IDs
+        assigned_by_ids = set(task["assigned_by"] for task in tasks_list if task["assigned_by"])
+        
+        if assigned_by_ids:
+            # Query to get all employee names at once
+            employees_query = select(
+                employees.c.id,
+                employees.c.first_name,
+                employees.c.last_name
+            ).where(employees.c.id.in_(assigned_by_ids))
+            
+            employees_result = db.execute(employees_query).fetchall()
+            
+            # Create a map of employee ID to name
+            employee_map = {
+                row.id: f"{row.first_name} {row.last_name}" 
+                for row in employees_result
+            }
+            
+            # Update tasks with employee names
+            for task in tasks_list:
+                if task["assigned_by"] and task["assigned_by"] in employee_map:
+                    task["assigned_by_name"] = employee_map[task["assigned_by"]]
     
     # Return with pagination metadata
     return {
@@ -92,19 +148,235 @@ def get_tasks(
         }
     }
 
-@router.get("/{task_id}", response_model=schemas.Task)
+@router.get("/department/{department_id}", response_model=Dict)
+def get_department_tasks(
+    department_id: int,
+    skip: int = 0, 
+    limit: int = 20,
+    status: Optional[str] = None,
+    is_urgent: Optional[bool] = None,
+    sort: str = "created_at",
+    order: str = "desc",
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_active_user)
+):
+    """
+    Get all tasks for a specific department.
+    Department managers can access their department's tasks.
+    """
+    # Verify access rights (admin, store manager, or department manager)
+    if current_user["role"] not in ["admin", "manager"]:
+        # For non-managers, check if they have access to this department
+        if current_user.get("department_id") != department_id:
+            raise_api_error(403, "Not authorized to view department tasks")
+    
+    # Base query with joins for name resolution
+    base_query = select(
+        tasks,
+        employees.c.first_name.label("assigned_to_first_name"),
+        employees.c.last_name.label("assigned_to_last_name"),
+        departments.c.name.label("department_name")
+    ).select_from(
+        tasks.outerjoin(
+            employees, tasks.c.assigned_to == employees.c.id
+        ).outerjoin(
+            departments, tasks.c.department_id == departments.c.id
+        )
+    )
+    
+    # Add department filter
+    base_query = base_query.where(
+        or_(
+            tasks.c.department_id == department_id,
+            tasks.c.assigned_to_department == department_id
+        )
+    )
+    
+    # Count query for pagination
+    count_query = select(func.count()).select_from(tasks).where(
+        or_(
+            tasks.c.department_id == department_id,
+            tasks.c.assigned_to_department == department_id
+        )
+    )
+    
+    # Add filters if provided
+    if status:
+        base_query = base_query.where(tasks.c.status == status)
+        count_query = count_query.where(tasks.c.status == status)
+    if is_urgent is not None:
+        base_query = base_query.where(tasks.c.is_urgent == is_urgent)
+        count_query = count_query.where(tasks.c.is_urgent == is_urgent)
+    
+    # Add search if provided
+    if search:
+        search_pattern = f"%{search}%"
+        search_filter = or_(
+            tasks.c.title.ilike(search_pattern),
+            tasks.c.description.ilike(search_pattern)
+        )
+        base_query = base_query.where(search_filter)
+        count_query = count_query.where(search_filter)
+    
+    # Add sorting
+    if hasattr(tasks.c, sort):
+        sort_column = getattr(tasks.c, sort)
+        if order.lower() == "asc":
+            base_query = base_query.order_by(sort_column.asc())
+        else:
+            base_query = base_query.order_by(sort_column.desc())
+    
+    # Get total count for pagination
+    total_count = db.execute(count_query).scalar()
+    
+    # Apply pagination
+    query = base_query.offset(skip).limit(limit)
+    
+    # Execute query
+    result = db.execute(query).fetchall()
+    
+    # Process the results to add name fields
+    tasks_list = []
+    for row in result:
+        task_dict = {}
+        for key in tasks.columns.keys():
+            task_dict[key] = getattr(row, key)
+        
+        # Add the joined names
+        if row.assigned_to_first_name and row.assigned_to_last_name:
+            task_dict["assigned_to_name"] = f"{row.assigned_to_first_name} {row.assigned_to_last_name}"
+        task_dict["department_name"] = row.department_name
+        
+        tasks_list.append(task_dict)
+    
+    # Add assigned_by names in a separate query to avoid complex joins
+    if tasks_list:
+        # Get all unique assigned_by IDs
+        assigned_by_ids = set(task["assigned_by"] for task in tasks_list if task["assigned_by"])
+        
+        if assigned_by_ids:
+            # Query to get all employee names at once
+            employees_query = select(
+                employees.c.id,
+                employees.c.first_name,
+                employees.c.last_name
+            ).where(employees.c.id.in_(assigned_by_ids))
+            
+            employees_result = db.execute(employees_query).fetchall()
+            
+            # Create a map of employee ID to name
+            employee_map = {
+                row.id: f"{row.first_name} {row.last_name}" 
+                for row in employees_result
+            }
+            
+            # Update tasks with employee names
+            for task in tasks_list:
+                if task["assigned_by"] and task["assigned_by"] in employee_map:
+                    task["assigned_by_name"] = employee_map[task["assigned_by"]]
+    
+    # Return with pagination metadata
+    return {
+        "items": tasks_list,
+        "pagination": {
+            "total": total_count,
+            "limit": limit,
+            "offset": skip,
+            "has_more": (skip + limit) < total_count
+        },
+        "sort": {
+            "field": sort,
+            "order": order
+        }
+    }
+
+@router.get("/assignable-employees", response_model=List[dict])
+def get_assignable_employees(
+    department_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_active_user)
+):
+    """
+    Get a list of employees that can be assigned to tasks.
+    Filtered by department if provided.
+    """
+    query = select(employees.c.id, 
+                  employees.c.first_name,
+                  employees.c.last_name,
+                  employees.c.position,
+                  employees.c.department_id,
+                  departments.c.name.label("department_name"))\
+            .join(departments, employees.c.department_id == departments.c.id)\
+            .where(employees.c.status == "active")
+    
+    if department_id:
+        query = query.where(employees.c.department_id == department_id)
+    
+    # If not admin, limit to user's department unless they're a manager
+    if current_user["role"] not in ["admin", "manager"] and current_user.get("department_id"):
+        query = query.where(employees.c.department_id == current_user["department_id"])
+    
+    result = db.execute(query).fetchall()
+    employees_list = [dict(row._mapping) for row in result]
+    
+    return employees_list
+
+@router.get("/{task_id}", response_model=schemas.TaskWithNames)
 def get_task(
     task_id: int, 
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_active_user)
 ):
-    query = select(tasks).where(tasks.c.id == task_id)
+    # Create a join query to get task with employee and department names
+    query = select(
+        tasks,
+        employees.c.first_name.label("assigned_to_first_name"),
+        employees.c.last_name.label("assigned_to_last_name"),
+        departments.c.name.label("department_name")
+    ).select_from(
+        tasks.outerjoin(
+            employees, tasks.c.assigned_to == employees.c.id
+        ).outerjoin(
+            departments, tasks.c.department_id == departments.c.id
+        )
+    ).where(tasks.c.id == task_id)
+    
     result = db.execute(query).fetchone()
     if result is None:
         raise_api_error(404, "Task not found")
-    return row_to_dict(result)
+    
+    # Convert SQLAlchemy row to dict
+    task_dict = {}
+    for key in tasks.columns.keys():
+        task_dict[key] = getattr(result, key)
+    
+    # Add the joined names
+    if result.assigned_to_first_name and result.assigned_to_last_name:
+        task_dict["assigned_to_name"] = f"{result.assigned_to_first_name} {result.assigned_to_last_name}"
+    task_dict["department_name"] = result.department_name
+    
+    # Get assigned_by name
+    if task_dict["assigned_by"]:
+        assigned_by_query = select(employees.c.first_name, employees.c.last_name).where(
+            employees.c.id == task_dict["assigned_by"]
+        )
+        assigned_by_result = db.execute(assigned_by_query).fetchone()
+        if assigned_by_result:
+            task_dict["assigned_by_name"] = f"{assigned_by_result.first_name} {assigned_by_result.last_name}"
+    
+    # Get assigned_to_department name if present
+    if task_dict.get("assigned_to_department"):
+        dept_query = select(departments.c.name).where(
+            departments.c.id == task_dict["assigned_to_department"]
+        )
+        dept_result = db.execute(dept_query).fetchone()
+        if dept_result:
+            task_dict["assigned_to_department_name"] = dept_result.name
+    
+    return task_dict
 
-@router.post("/", response_model=schemas.Task)
+@router.post("/", response_model=schemas.TaskWithNames)
 def create_task(
     task: schemas.TaskCreate, 
     db: Session = Depends(get_db),
@@ -128,12 +400,11 @@ def create_task(
     db.commit()
     
     task_id = result.inserted_primary_key[0]
-    query = select(tasks).where(tasks.c.id == task_id)
-    result = db.execute(query).fetchone()
-    created_task = row_to_dict(result)
-    return created_task
+    
+    # Use the get_task endpoint to fetch the task with names
+    return get_task(task_id, db, current_user)
 
-@router.put("/{task_id}", response_model=schemas.Task)
+@router.put("/{task_id}", response_model=schemas.TaskWithNames)
 def update_task(
     task_id: int, 
     task: schemas.TaskUpdate, 
@@ -166,6 +437,8 @@ def update_task(
         update_values["description"] = task.description
     if task.assigned_to is not None:
         update_values["assigned_to"] = task.assigned_to
+    if task.assigned_to_department is not None:
+        update_values["assigned_to_department"] = task.assigned_to_department
     if task.is_urgent is not None:
         update_values["is_urgent"] = task.is_urgent
     if task.due_date is not None:
@@ -183,13 +456,10 @@ def update_task(
     db.execute(update_stmt)
     db.commit()
     
-    # Fetch updated task
-    query = select(tasks).where(tasks.c.id == task_id)
-    result = db.execute(query).fetchone()
-    updated_task = row_to_dict(result)
-    return updated_task
+    # Use the get_task endpoint to fetch the updated task with names
+    return get_task(task_id, db, current_user)
 
-@router.patch("/{task_id}/status", response_model=schemas.Task)
+@router.patch("/{task_id}/status", response_model=schemas.TaskWithNames)
 def update_task_status(
     task_id: int,
     status_update: dict,
@@ -235,11 +505,67 @@ def update_task_status(
     db.execute(update_stmt)
     db.commit()
     
-    # Fetch updated task
+    # Use the get_task endpoint to fetch the updated task with names
+    return get_task(task_id, db, current_user)
+
+@router.patch("/{task_id}/assign", response_model=schemas.TaskWithNames)
+def assign_task(
+    task_id: int,
+    assignment: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_active_user)
+):
+    """
+    Assign a task to an employee or department.
+    Only managers, admins, or the task creator can assign tasks.
+    """
+    # Check if task exists
     query = select(tasks).where(tasks.c.id == task_id)
-    result = db.execute(query).fetchone()
-    updated_task = row_to_dict(result)
-    return updated_task
+    existing_task = db.execute(query).fetchone()
+    if existing_task is None:
+        raise_api_error(404, "Task not found")
+    
+    existing_task_dict = row_to_dict(existing_task)
+    
+    # Check if current user is authorized to assign this task
+    is_authorized = (
+        existing_task_dict["assigned_by"] == current_user["id"] or
+        current_user["role"] in ["admin", "manager"]
+    )
+    
+    if not is_authorized:
+        raise_api_error(403, "You do not have permission to assign this task")
+    
+    # Prepare update values
+    update_values = {}
+    
+    # Assign to specific employee if provided
+    if "assigned_to" in assignment:
+        update_values["assigned_to"] = assignment["assigned_to"]
+        
+        # If assigning to an employee, also get their department
+        if assignment["assigned_to"]:
+            emp_query = select(employees.c.department_id).where(employees.c.id == assignment["assigned_to"])
+            emp_result = db.execute(emp_query).fetchone()
+            if emp_result:
+                update_values["assigned_to_department"] = emp_result[0]
+    
+    # Assign to department if provided
+    if "assigned_to_department" in assignment:
+        update_values["assigned_to_department"] = assignment["assigned_to_department"]
+        
+        # If we're assigning to a department and not to a specific employee,
+        # clear the assigned_to field
+        if "assigned_to" not in assignment and assignment["assigned_to_department"]:
+            update_values["assigned_to"] = None
+    
+    # Update task
+    update_stmt = update(tasks).where(tasks.c.id == task_id).values(**update_values)
+    db.execute(update_stmt)
+    db.commit()
+    
+    # Use the get_task endpoint to fetch the updated task with names
+    return get_task(task_id, db, current_user)
 
 @router.delete("/{task_id}", response_model=dict)
 def delete_task(

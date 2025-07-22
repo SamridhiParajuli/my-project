@@ -1,0 +1,15 @@
+
+
+
+For front end development with nice animations in react:
+- Framer motion
+
+For reusable elements (open source):
+- reactbits.dev
+
+for icons:
+- lucide react
+
+for some components with very minimal design:
+- shadcn
+

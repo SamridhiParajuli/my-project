@@ -5,6 +5,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { login as apiLogin, logout as apiLogout, getUser } from '@/services/auth'
 
+// Export these interfaces so they can be used elsewhere
 export interface User {
   id: number
   username: string
@@ -12,6 +13,8 @@ export interface User {
   employee_id?: number
   department_id?: number
   is_active?: boolean
+  name?: string // Add this for UserProfile component
+  email?: string // Add this for UserProfile component
 }
 
 export interface Employee {
@@ -41,6 +44,7 @@ export interface AuthContextType {
   employee: Employee | null
   department: Department | null
   loading: boolean
+  isLoading: boolean // This is needed for RoleProtectedRoute
   login: (username: string, password: string) => Promise<any>
   logout: () => void
   isAdmin: boolean
@@ -73,6 +77,7 @@ export const AuthContext = createContext<AuthContextType>({
   employee: null,
   department: null,
   loading: true,
+  isLoading: true, // Initialize with true
   login: async () => ({}),
   logout: () => {},
   isAdmin: false,
@@ -124,14 +129,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }
 
-  const logout = () => {
-    apiLogout()
-    setUser(null)
-    setEmployee(null)
-    setDepartment(null)
-    router.push('/login')
+  const logout = async () => {
+  // Clear authentication data from local storage
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
   }
-
+  
+  // Reset state
+  setUser(null);
+  setEmployee(null);
+  setDepartment(null);
+  
+  // Optional: Call API to invalidate token
+  try {
+    await apiLogout(); // Only if your API supports this
+  } catch (error) {
+    console.error('Error during logout API call:', error);
+    // Continue with logout even if API call fails
+  }
+  
+  // Router push will be handled by the component that calls this function
+}
   // Role-based helper functions
   const isAdmin = user?.role === 'admin'
   const isManager = user?.role === 'manager'
@@ -158,6 +177,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         employee,
         department,
         loading,
+        isLoading: loading, // Use the existing loading state for isLoading
         login,
         logout,
         isAdmin,
@@ -174,3 +194,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 }
 
 export const useAuth = () => useContext(AuthContext)
+
+// Export default as well to support both import styles
+export default useAuth

@@ -1,4 +1,3 @@
-# app/main.py
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -78,4 +77,3 @@ async def root():
         "documentation": "/docs",
         "status": "online"
     }
-

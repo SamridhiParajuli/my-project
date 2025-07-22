@@ -1,4 +1,4 @@
-// src/services/permissions.ts
+// src/services/permissions.ts - Fixed API endpoints
 import api from './api'
 
 export interface Permission {
@@ -51,16 +51,61 @@ export interface RolePermissionUpdate {
  * Get all permissions
  */
 export const getPermissions = async (params: any = {}) => {
-  const response = await api.get('/permissions', { params })
-  return response.data
+  // Check API connection first
+  try {
+    // Try to get the API root to check connection
+    await api.get('/')
+  } catch (error) {
+    console.error('API connection test failed:', error)
+    // Continue with the actual request
+  }
+
+  try {
+    const response = await api.get('/permissions', { params })
+    return response.data
+  } catch (error: any) {
+    console.error('Permissions API error:', error)
+    
+    // Fallback to alternative endpoint if original fails
+    if (error.response?.status === 404) {
+      // Try alternative path format
+      try {
+        const altResponse = await api.get('/api/permissions', { params })
+        return altResponse.data
+      } catch (altError) {
+        console.error('Alternative permissions endpoint also failed:', altError)
+        throw altError
+      }
+    }
+    
+    throw error
+  }
 }
 
 /**
  * Get permissions by role
  */
 export const getRolePermissions = async () => {
-  const response = await api.get('/permissions/roles')
-  return response.data
+  try {
+    const response = await api.get('/permissions/roles')
+    return response.data
+  } catch (error: any) {
+    console.error('Role permissions API error:', error)
+    
+    // Fallback to alternative endpoint if original fails
+    if (error.response?.status === 404) {
+      // Try alternative path format
+      try {
+        const altResponse = await api.get('/api/permissions/roles')
+        return altResponse.data
+      } catch (altError) {
+        console.error('Alternative role permissions endpoint also failed:', altError)
+        throw altError
+      }
+    }
+    
+    throw error
+  }
 }
 
 /**

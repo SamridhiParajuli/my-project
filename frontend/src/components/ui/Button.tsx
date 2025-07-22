@@ -1,83 +1,75 @@
-import { ButtonHTMLAttributes, ReactNode, forwardRef } from 'react'
+// Path: src/components/ui/Button.tsx
+import React from 'react';
+import { cn } from '@/lib/utils';
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  children: ReactNode
-  variant?: 'primary' | 'secondary' | 'outline' | 'danger'
-  size?: 'sm' | 'md' | 'lg'
-  fullWidth?: boolean
-  isLoading?: boolean
+type ButtonVariant = 'default' | 'secondary' | 'outline' | 'ghost' | 'accent' | 'link' | 'gold' | 'destructive' | 'muted';
+type ButtonSize = 'default' | 'sm' | 'lg' | 'icon';
+
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
 }
 
-const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ 
-    children, 
-    variant = 'primary', 
-    size = 'md', 
-    fullWidth = false, 
-    isLoading = false,
-    className = '',
-    disabled,
-    ...props 
-  }, ref) => {
-    const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2'
-    
-    const variants = {
-      primary: 'bg-dark-800 text-cream-100 hover:bg-dark-900 focus:ring-dark-800',
-      secondary: 'bg-cream-100 text-dark-800 hover:bg-cream-200 focus:ring-cream-200',
-      outline: 'bg-transparent border border-dark-800 text-dark-800 hover:bg-dark-800/5 focus:ring-dark-800',
-      danger: 'bg-accent-red text-white hover:bg-accent-red/90 focus:ring-accent-red',
-    }
-    
-    const sizes = {
-      sm: 'text-sm px-3 py-2',
-      md: 'text-base px-4 py-2.5',
-      lg: 'text-lg px-6 py-3',
-    }
-    
-    const widthClass = fullWidth ? 'w-full' : ''
-    
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant = 'default', size = 'default', ...props }, ref) => {
+    const getVariantClasses = (variant: ButtonVariant): string => {
+      switch (variant) {
+        case 'default':
+          return 'bg-primary text-secondary hover:bg-primary-light';
+        case 'secondary':
+          return 'bg-secondary text-primary hover:bg-secondary-dark';
+        case 'outline':
+          return 'border border-primary text-primary hover:bg-secondary/30';
+        case 'ghost':
+          return 'hover:bg-secondary/30 text-primary-light';
+        case 'accent':
+          return 'bg-accent text-white hover:bg-accent-dark';
+        case 'link':
+          return 'underline-offset-4 hover:underline text-accent';
+        case 'gold':
+          return 'bg-gradient-to-r from-accent-light to-accent border border-accent-dark text-primary-dark hover:shadow-md hover:from-accent hover:to-accent-light';
+        case 'destructive':
+          return 'bg-red-600 text-white hover:bg-red-700';
+        case 'muted':
+          return 'bg-gray-100 text-gray-700 hover:bg-gray-200';
+        default:
+          return 'bg-primary text-secondary hover:bg-primary-light';
+      }
+    };
+
+    const getSizeClasses = (size: ButtonSize): string => {
+      switch (size) {
+        case 'default':
+          return 'h-10 py-2 px-4';
+        case 'sm':
+          return 'h-9 px-3 rounded-sm';
+        case 'lg':
+          return 'h-11 px-8 rounded-sm';
+        case 'icon':
+          return 'h-10 w-10';
+        default:
+          return 'h-10 py-2 px-4';
+      }
+    };
+
     return (
       <button
-        ref={ref}
-        className={`
-          ${baseStyles}
-          ${variants[variant]}
-          ${sizes[size]}
-          ${widthClass}
-          ${disabled || isLoading ? 'opacity-60 cursor-not-allowed' : ''}
-          ${className}
-        `}
-        disabled={disabled || isLoading}
-        {...props}
-      >
-        {isLoading && (
-          <svg 
-            className="animate-spin -ml-1 mr-3 h-4 w-4 text-current" 
-            xmlns="http://www.w3.org/2000/svg" 
-            fill="none" 
-            viewBox="0 0 24 24"
-          >
-            <circle 
-              className="opacity-25" 
-              cx="12" 
-              cy="12" 
-              r="10" 
-              stroke="currentColor" 
-              strokeWidth="4"
-            ></circle>
-            <path 
-              className="opacity-75" 
-              fill="currentColor" 
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            ></path>
-          </svg>
+        className={cn(
+          'inline-flex items-center justify-center rounded-sm text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 disabled:pointer-events-none tracking-wide',
+          getVariantClasses(variant),
+          getSizeClasses(size),
+          className
         )}
-        {children}
-      </button>
-    )
+        ref={ref}
+        {...props}
+      />
+    );
   }
-)
+);
 
-Button.displayName = 'Button'
+Button.displayName = 'Button';
 
-export default Button
+export { Button };
+
+// For backwards compatibility with components using default import
+export default Button;

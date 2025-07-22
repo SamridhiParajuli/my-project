@@ -1,44 +1,95 @@
+// Path: tailwind.config.js
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: ["class"],
   content: [
-    './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
-    './src/components/**/*.{js,ts,jsx,tsx,mdx}',
-    './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+    './pages/**/*.{ts,tsx}',
+    './components/**/*.{ts,tsx}',
+    './app/**/*.{ts,tsx}',
+    './src/**/*.{ts,tsx}',
   ],
   theme: {
+    container: {
+      center: true,
+      padding: "2rem",
+      screens: {
+        "2xl": "1400px",
+      },
+    },
     extend: {
       colors: {
-        cream: {
-          50: '#FFFDF5',
-          100: '#F8F4E4',
-          200: '#F5F0D6',
-          300: '#EFE8C2',
+        // Luxury color palette based on black and cream theme
+        primary: {
+          DEFAULT: "#1A1A1A", // Rich black
+          light: "#333333",
+          dark: "#000000",
         },
-        dark: {
-          600: '#2F2F2F',
-          700: '#242424',
-          800: '#1A1A1A',
-          900: '#121212',
-        },
-        gold: {
-          DEFAULT: '#D4AF37',
-          light: '#F0E29C',
+        secondary: {
+          DEFAULT: "#F5F0E3", // Cream
+          light: "#FDF8ED",
+          dark: "#E8DFC7",
         },
         accent: {
-          green: '#2E7D32',
-          red: '#C62828',
-          blue: '#1565C0',
+          DEFAULT: "#B8A87E", // Gold/Bronze
+          light: "#D6C9A0",
+          dark: "#9A8B60",
+        },
+        success: "#2D5F3D", // Deep forest green
+        warning: "#AD7D2C", // Amber gold
+        error: "#872C31", // Deep burgundy
+        info: "#2C5F7A", // Deep teal
+        surface: {
+          DEFAULT: "#FCFAF5", // Off-white
+          dark: "#121212", // Near black
+        },
+        // Keep any existing color definitions your app might be using
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
         },
       },
-      boxShadow: {
-        sm: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-        md: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-        lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+      borderRadius: {
+        lg: "var(--radius-lg)", 
+        md: "var(--radius-md)",
+        sm: "var(--radius-sm)",
       },
-      fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+      boxShadow: {
+        'elegant': '0 4px 20px -2px rgba(0, 0, 0, 0.1)',
+        'elegant-lg': '0 10px 30px -3px rgba(0, 0, 0, 0.1)',
+        'inner-elegant': 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.05)',
+      },
+      keyframes: {
+        "accordion-down": {
+          from: { height: 0 },
+          to: { height: "var(--radix-accordion-content-height)" },
+        },
+        "accordion-up": {
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: 0 },
+        },
+      },
+      animation: {
+        "accordion-down": "accordion-down 0.2s ease-out",
+        "accordion-up": "accordion-up 0.2s ease-out",
       },
     },
   },
-  plugins: [],
+  plugins: [require("tailwindcss-animate")],
 }

@@ -1,15 +1,17 @@
 # app/routers/departments.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import select, insert, update, delete, func, or_
+from sqlalchemy import select, insert, update, delete, func, or_,text
 from typing import List, Optional, Dict
 from ..database.database import get_db
-from ..models.reflected_models import departments, employees
+from ..models.reflected_models import departments, employees,users
 from ..schemas import schemas
 from ..utils.auth_utils import get_current_active_user
 from ..utils.roles import admin_only, manager_or_admin
 from ..utils.error_handling import raise_api_error
-from ..utils.db_helpers import row_to_dict, rows_to_list
+from ..utils.db_helpers import row_to_dict, rows_to_list, break_department_dependencies
+# from ..models.models import Department  # Comment this out until you have all models defined
+from datetime import datetime
 
 router = APIRouter(
     prefix="/departments",
@@ -96,9 +98,9 @@ def get_department(
 def create_department(
     department: schemas.DepartmentCreate, 
     db: Session = Depends(get_db),
-    current_user: dict = Depends(manager_or_admin)  # Only managers or admins can create departments
+    current_user: dict = Depends(manager_or_admin)
 ):
-    # Check if department_code already exists
+    # Use the reflection approach for now
     if department.department_code:
         code_query = select(departments).where(departments.c.department_code == department.department_code)
         existing_dept = db.execute(code_query).fetchone()
@@ -123,7 +125,10 @@ def create_department(
         "department_code": department.department_code,
         "description": department.description,
         "manager_id": department.manager_id,
-        "is_active": department.is_active
+        "is_active": department.is_active,
+        # Include timestamp fields
+        "created_at": datetime.now(),
+        "updated_at": datetime.now()
     }
     
     insert_stmt = insert(departments).values(**new_department)
@@ -141,14 +146,14 @@ def update_department(
     department_id: int, 
     department: schemas.DepartmentCreate, 
     db: Session = Depends(get_db),
-    current_user: dict = Depends(manager_or_admin)  # Only managers or admins can update departments
+    current_user: dict = Depends(manager_or_admin)
 ):
     # Check if department exists
     query = select(departments).where(departments.c.id == department_id)
     existing_department = db.execute(query).fetchone()
     if existing_department is None:
         raise_api_error(404, "Department not found")
-    
+
     # Update department
     update_values = {
         "name": department.name,
@@ -157,16 +162,22 @@ def update_department(
         "manager_id": department.manager_id,
         "is_active": department.is_active
     }
-    
-    update_stmt = update(departments).where(departments.c.id == department_id).values(**update_values)
+
+    update_stmt = (
+        update(departments)
+        .where(departments.c.id == department_id)
+        .values(**update_values)
+    )
     db.execute(update_stmt)
     db.commit()
-    
+
     # Fetch updated department
     query = select(departments).where(departments.c.id == department_id)
     result = db.execute(query).fetchone()
     updated_department = row_to_dict(result)
-    return updated_department
+
+    # ✅ RETURN Pydantic object instead of raw dict
+    return schemas.Department(**updated_department)
 
 @router.delete("/{department_id}", response_model=dict)
 def delete_department(
@@ -174,26 +185,48 @@ def delete_department(
     db: Session = Depends(get_db),
     current_user: dict = Depends(admin_only)  # Only admins can delete departments
 ):
-    # Check if department exists
-    query = select(departments).where(departments.c.id == department_id)
-    existing_department = db.execute(query).fetchone()
-    if existing_department is None:
-        raise_api_error(404, "Department not found")
-    
-    # Check if there are any employees in this department
-    employee_query = select(employees).where(employees.c.department_id == department_id)
-    department_employees = db.execute(employee_query).fetchall()
-    
-    if department_employees:
-        # There are employees in this department
-        raise_api_error(
-            400, 
-            f"Cannot delete department with ID {department_id} because it has {len(department_employees)} employees assigned to it. Reassign or remove employees first."
-        )
-    
-    # If no employees, proceed with deletion
-    delete_stmt = delete(departments).where(departments.c.id == department_id)
-    db.execute(delete_stmt)
-    db.commit()
-    
-    return {"message": "Department deleted successfully"}
+    try:
+        # Check if department exists
+        query = select(departments).where(departments.c.id == department_id)
+        existing_department = db.execute(query).fetchone()
+        if existing_department is None:
+            raise_api_error(404, "Department not found")
+        
+        # Check if there are any employees in this department
+        employee_query = select(employees).where(employees.c.department_id == department_id)
+        department_employees = db.execute(employee_query).fetchall()
+        
+        if department_employees:
+            # There are employees in this department
+            raise_api_error(
+                400, 
+                f"Cannot delete department with ID {department_id} because it has {len(department_employees)} employees assigned to it. Reassign or remove employees first."
+            )
+        
+        # Check if there are any users in this department
+        user_query = select(users).where(users.c.department_id == department_id)
+        department_users = db.execute(user_query).fetchall()
+        
+        if department_users:
+            # There are users in this department
+            raise_api_error(
+                400, 
+                f"Cannot delete department with ID {department_id} because it has {len(department_users)} users assigned to it. Reassign or remove users first."
+            )
+        
+        # Break dependencies with other tables
+        break_department_dependencies(db, department_id)
+        
+        # Delete department
+        delete_stmt = delete(departments).where(departments.c.id == department_id)
+        db.execute(delete_stmt)
+        db.commit()
+        
+        return {"message": "Department deleted successfully"}
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"Unexpected error in delete_department: {str(e)}")
+        raise_api_error(500, f"Failed to delete department: {str(e)}")
