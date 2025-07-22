@@ -118,4 +118,44 @@
   .gradient-text {
     @apply bg-gradient-to-r from-accent to-accent-dark inline-block text-transparent bg-clip-text;
   }
+
+
+  .title {
+    font-family: 'Playfair Display', serif;
+    font-weight: 600;
+  }
+  
+  .body {
+    font-family: 'Lato', sans-serif;
+    font-weight: 400;
+  }
+  
+  /* Animation classes */
+  .animate-fadeIn {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+
+  .animate-fadeSlideDown {
+    animation: fadeSlideDown 0.7s ease-out 0.3s backwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes fadeSlideDown {
+    from { 
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to { 
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+
+
 }
+

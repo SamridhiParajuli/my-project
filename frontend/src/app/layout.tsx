@@ -21,8 +21,8 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: 'GourmetPro - Premium Grocery Management',
-  description: 'Task management system for premium grocery chain',
+  title: 'Summerhill Market - Quality Grocery Boutique',
+  description: 'Task management system for epitome of efficiency and organization.',
 };
 
 export default function RootLayout({
@@ -31,8 +31,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${playfair.variable} ${montserrat.variable}`}>
-      <body className="font-sans bg-surface">
+    <html lang="en" className={`${montserrat.variable}`}>
+      <body className=" bg-surface">
         <Providers>{children}</Providers>
       </body>
     </html>

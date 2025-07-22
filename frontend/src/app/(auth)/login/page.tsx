@@ -1,15 +1,18 @@
-// app/(auth)/login/page.tsx - Updated to show role details
+// app/(auth)/login/page.tsx
 'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import Image from 'next/image'
+import { motion, AnimatePresence, Variants } from 'framer-motion'
 
 export default function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [showTestAccounts, setShowTestAccounts] = useState(false)
   const { login } = useAuth()
   const router = useRouter()
 
@@ -41,54 +44,129 @@ export default function Login() {
   const setTestAccount = (username: string, password: string) => {
     setUsername(username)
     setPassword(password)
+    setShowTestAccounts(false)
+  }
+
+  // Animation variants with smoother transitions
+  const containerVariants:Variants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        when: "beforeChildren",
+        staggerChildren: 0.25,
+        duration: 0.5,
+        ease: "easeOut"
+      }
+    }
+  }
+
+  const topPillVariants:Variants = {
+    hidden: { 
+      y: -60, 
+      opacity: 0 
+    },
+    visible: { 
+      y: 0, 
+      opacity: 1,
+      transition: { 
+        type: "tween", 
+        duration: 0.8,
+        ease: [0.2, 0.65, 0.3, 0.9] // Custom cubic bezier curve for smooth motion
+      }
+    }
+  }
+
+  const bottomPillVariants:Variants = {
+    hidden: { 
+      y: 60, 
+      opacity: 0 
+    },
+    visible: { 
+      y: 0, 
+      opacity: 1,
+      transition: { 
+        type: "tween", 
+        duration: 0.8,
+        ease: [0.2, 0.65, 0.3, 0.9] // Same custom easing
+      }
+    }
   }
 
   return (
-    <div className="flex min-h-screen">
-      {/* Form Side */}
-      <div className="flex-1 flex flex-col justify-center items-center bg-cream-50 p-8">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-10">
-            <h1 className="text-4xl font-bold text-dark-900 mb-2">Store Management</h1>
-            <p className="text-lg text-dark-600">Staff Portal</p>
+    <div className="relative min-h-[100svh] flex items-center justify-center p-4">
+      {/* Background Image */}
+      <Image 
+        src="/forest-hill-grocery.png" 
+        alt="Summerhill Market" 
+        fill 
+        className="object-cover object-center z-0"
+        priority
+      />
+      
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-black/50 z-10"></div>
+      
+      {/* Content */}
+      <motion.div 
+        className="z-20 w-full max-w-md md:max-w-lg lg:max-w-xl flex flex-col items-center gap-3"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        {/* Top Pill - Logo */}
+        <motion.div 
+          className="bg-[#f7eccf] rounded-3xl shadow-xl p-6 w-full flex justify-center items-center transform hover:scale-[1.01] transition-transform"
+          variants={topPillVariants}
+        >
+          <div className="relative w-56 h-16">
+            <Image 
+              src="/logo.png" 
+              alt="Summerhill Market" 
+              fill
+              className="object-contain"
+            />
           </div>
-          
-          <div className="bg-white rounded-xl shadow-lg p-8 border border-cream-200">
-            <div className="mb-6 pb-6 border-b border-cream-200">
-              <h2 className="text-2xl font-semibold text-dark-800">Sign In</h2>
-              <p className="text-dark-600 mt-1">Access your management dashboard</p>
-            </div>
+        </motion.div>
+        
+        {/* Bottom Pill - Form */}
+        <motion.div 
+          className="bg-white/20 backdrop-blur-sm rounded-3xl shadow-xl overflow-hidden w-full border border-white/10 transition-all"
+          variants={bottomPillVariants}
+        >
+          <div className="p-8">
+            <h2 className="text-xl font-semibold text-center text-[#f7eccf] mb-6">STAFF PORTAL</h2>
             
             {error && (
-              <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded">
+              <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded">
                 <p>{error}</p>
               </div>
             )}
             
             <form onSubmit={handleSubmit}>
               <div className="mb-6">
-                <label className="block text-sm font-medium mb-2 text-dark-700">
+                <label className="block text-sm font-medium mb-2 text-[#f7eccf]">
                   Username
                 </label>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="form-input w-full px-4 py-3 border border-cream-300 rounded-lg"
+                  className="w-full px-4 py-3 bg-[#f7eccf] border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
                   required
                   disabled={isLoading}
                 />
               </div>
               
               <div className="mb-6">
-                <label className="block text-sm font-medium mb-2 text-dark-700">
+                <label className="block text-sm font-medium mb-2 text-[#f7eccf]">
                   Password
                 </label>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="form-input w-full px-4 py-3 border border-cream-300 rounded-lg"
+                  className="w-full px-4 py-3 bg-[#f7eccf] border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
                   required
                   disabled={isLoading}
                 />
@@ -96,7 +174,7 @@ export default function Login() {
               
               <button 
                 type="submit" 
-                className="w-full bg-dark-800 text-cream-100 hover:bg-dark-900 px-6 py-3 rounded-lg font-medium"
+                className="w-full bg-gradient-to-r from-[#1C1C1C] to-[#333333] text-[#f7eccf] px-6 py-3 rounded-lg font-medium shadow-md hover:shadow-lg transition-all transform hover:translate-y-[-2px] active:translate-y-[1px] disabled:opacity-70 disabled:cursor-not-allowed"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -111,61 +189,79 @@ export default function Login() {
               </button>
             </form>
             
-            {/* Test Accounts Section */}
-            <div className="mt-8 pt-6 border-t border-cream-200">
-              <h3 className="text-sm font-medium text-dark-700 mb-3">Test Accounts:</h3>
-              <div className="space-y-2">
+            {/* Small button for test accounts */}
+            <div className="flex justify-center mt-4">
+              <button
+                onClick={() => setShowTestAccounts(true)}
+                className="text-xs px-2 py-1 rounded-full bg-white/20 text-[#f7eccf]/80 hover:bg-white/30 transition-colors text-center"
+              >
+                Dev Accounts
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+      
+      {/* Test Accounts Modal */}
+      <AnimatePresence>
+        {showTestAccounts && (
+          <>
+            {/* Modal Backdrop */}
+            <motion.div 
+              className="fixed inset-0 bg-black/70 z-30 backdrop-blur-sm"
+              onClick={() => setShowTestAccounts(false)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+            ></motion.div>
+            
+            {/* Modal Content */}
+            <motion.div 
+              className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl p-6 z-40 w-full max-w-md"
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.98, opacity: 0, y: 10 }}
+              transition={{ duration: 0.35, ease: [0.2, 0.65, 0.3, 0.9] }}
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Test Accounts</h3>
+                <button 
+                  onClick={() => setShowTestAccounts(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
                 {testAccounts.map((account, index) => (
                   <div 
                     key={index}
-                    className="flex justify-between items-center p-2 rounded hover:bg-cream-50 cursor-pointer text-sm"
+                    className="flex justify-between items-center p-3 rounded bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors"
                     onClick={() => setTestAccount(account.username, account.password)}
                   >
                     <div>
                       <span className="font-medium">{account.username}</span>
-                      <span className="mx-2 text-dark-400">|</span>
-                      <span className="text-dark-500">{account.password}</span>
+                      <span className="mx-2 text-gray-400">|</span>
+                      <span className="text-gray-500">{account.password}</span>
                     </div>
-                    <span className="text-xs px-2 py-1 rounded-full bg-dark-100 text-dark-600">
+                    <span className="text-xs px-2 py-1 rounded-full bg-gray-200 text-gray-700">
                       {account.role}
                     </span>
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-dark-500 mt-4 text-center">
+              
+              <p className="text-xs text-gray-500 mt-4 text-center">
                 Click on any account to autofill credentials
               </p>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      {/* Brand Side - Hidden on mobile, visible on desktop */}
-      <div className="hidden lg:block lg:w-1/2 bg-dark-900 text-cream-100 relative">
-        <div className="absolute inset-0 flex flex-col justify-center items-center p-12">
-          <h2 className="text-3xl font-bold text-cream-100 mb-6 text-center">
-            Store Management System
-          </h2>
-          <p className="text-xl text-cream-200 max-w-md mx-auto text-center">
-            Streamline your operations with our comprehensive management platform
-          </p>
-          
-          <div className="grid grid-cols-3 gap-6 max-w-3xl mx-auto mt-12">
-            <div className="bg-dark-700/50 p-4 rounded-xl border border-dark-600">
-              <div className="text-lg font-semibold text-yellow-400 mb-1">Tasks</div>
-              <p className="text-sm text-cream-200">Manage daily operations</p>
-            </div>
-            <div className="bg-dark-700/50 p-4 rounded-xl border border-dark-600">
-              <div className="text-lg font-semibold text-green-400 mb-1">Inventory</div>
-              <p className="text-sm text-cream-200">Track your stock</p>
-            </div>
-            <div className="bg-dark-700/50 p-4 rounded-xl border border-dark-600">
-              <div className="text-lg font-semibold text-red-400 mb-1">Employees</div>
-              <p className="text-sm text-cream-200">Manage your team</p>
-            </div>
-          </div>
-        </div>
-      </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
