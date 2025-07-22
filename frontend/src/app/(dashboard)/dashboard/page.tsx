@@ -1062,8 +1062,21 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 relative">
+      {/* Background image */}
+      <div className="fixed inset-0 z-0 pointer-events-none bg-[#f7eccf]/40">
+        <Image 
+          src="/forest-hill-grocery.png" 
+          alt="Summerhill Market" 
+          fill 
+          className="object-cover object-center opacity-10"
+          priority
+        />
+        {/* Additional overlay for better readability */}
+        <div className="absolute inset-0 bg-[#f7eccf]/5 backdrop-blur-[2px]"></div>
+      </div>
+
       <motion.div 
-        className="mb-6"
+        className="mb-6 relative z-10"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
@@ -1105,7 +1118,7 @@ export default function DashboardPage() {
 
       {error && (
         <motion.div 
-          className="bg-red-100 text-red-800 p-4 rounded-2xl flex items-center mb-6"
+          className="bg-red-100 text-red-800 p-4 rounded-2xl flex items-center mb-6 relative z-10"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
@@ -1117,7 +1130,7 @@ export default function DashboardPage() {
 
       {/* Navigation Tabs */}
       <motion.div 
-        className="bg-[#1C1C1C] p-1.5 rounded-2xl flex mb-6 shadow-xl"
+        className="bg-[#1C1C1C] p-1.5 rounded-2xl flex mb-6 shadow-xl relative z-10"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.6 }}
@@ -1152,6 +1165,7 @@ export default function DashboardPage() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
           transition={{ duration: 0.5 }}
+          className="relative z-10"
         >
           {renderTabContent()}
         </motion.div>
