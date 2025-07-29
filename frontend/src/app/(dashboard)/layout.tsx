@@ -156,7 +156,7 @@ export default function DashboardLayout({
               transition={{ delay: 0.1, duration: 0.4 }}
             >
               {/* Logo area */}
-              <div className="px-4 mb-8">
+              <div className="px-4 mb-8 mt-10">
                 <motion.div 
                   className="text-2xl font-bold tracking-tight"
                   initial={{ y: -20, opacity: 0 }}
