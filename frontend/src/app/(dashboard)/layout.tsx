@@ -325,9 +325,9 @@ export default function DashboardLayout({
           <div className="h-16 px-6 flex items-center justify-between">
             <div className="flex items-center">
               <div className="w-10 md:w-0"></div> {/* This creates space for the toggle button */}
-      <h1 className="text-xl font-sans font-semibold tracking-tight text-[#f7eccf]">
+      <h1 className="text-xl font-sans font-semibold tracking-tight text-[#f7eccf] md:ml-12">
         <span>Summerhill</span>
-        <span className="ml-2">Market</span>
+        <span className="ml-2 hidden md:inline">Market</span>
       </h1>
             </div>
             
