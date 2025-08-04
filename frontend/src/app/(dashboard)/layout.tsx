@@ -331,17 +331,7 @@ export default function DashboardLayout({
       </h1>
             </div>
             
-            {/* Search */}
-            <div className="hidden md:flex relative w-1/3 max-w-md">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search size={16} className="text-[#f7eccf]/50" />
-              </div>
-              <input
-                type="search"
-                placeholder="Search..."
-                className="block w-full pl-10 pr-3 py-2 border border-[#f7eccf]/10 rounded-full bg-[#333333] focus:ring-1 focus:ring-[#f7eccf] focus:border-[#f7eccf] text-sm text-[#f7eccf] placeholder:text-[#f7eccf]/50"
-              />
-            </div>
+           
             
             {/* Actions */}
             <div className="flex items-center space-x-2">
