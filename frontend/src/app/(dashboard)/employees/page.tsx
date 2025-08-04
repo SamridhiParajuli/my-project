@@ -1,6 +1,7 @@
+// app/(dashboard)/employees/page.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence, Variants } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -129,6 +130,7 @@ export default function EmployeesPage() {
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [showForm, setShowForm] = useState<boolean>(false)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const formRef = useRef<HTMLDivElement>(null)
   const [sortBy, setSortBy] = useState<string>('first_name')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [filterStatus, setFilterStatus] = useState<string>('all')
@@ -312,6 +314,15 @@ export default function EmployeesPage() {
     })
     setEditingId(employee.id)
     setShowForm(true)
+    
+    // Scroll to form section after a brief delay to ensure form is rendered
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start',
+        inline: 'nearest'
+      })
+    }, 100)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -714,6 +725,7 @@ export default function EmployeesPage() {
         <AnimatePresence>
           {showForm && (
             <motion.div
+              ref={formRef}
               variants={formVariants}
               initial="hidden"
               animate="visible"
