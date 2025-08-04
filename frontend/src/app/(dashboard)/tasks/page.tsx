@@ -1,13 +1,93 @@
 // app/(dashboard)/tasks/page.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence, Variants } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { Card, CardBody } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/services/api'
-import SearchBar from '@/components/ui/SearchBar'
+import { SearchBar } from '@/components/ui/SearchBar'
+import { 
+  Clipboard,
+  AlertCircle, 
+  Check, 
+  Clock, 
+  Calendar,
+  Plus,
+  X,
+  ChevronDown,
+  Users,
+  UserCheck,
+  SortAsc,
+  SortDesc,
+  Filter,
+  CheckCircle,
+  XCircle,
+  Flag,
+  ArrowRight,
+  ExternalLink
+} from 'lucide-react'
+
+// Define animation variants
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05,
+      delayChildren: 0.1
+    }
+  }
+}
+
+const itemVariants: Variants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1.0] }
+  }
+}
+
+const cardVariants: Variants = {
+  hidden: { y: 15, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1.0] }
+  },
+  hover: {
+    y: -8,
+    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+    transition: { duration: 0.3 }
+  }
+}
+
+const formVariants: Variants = {
+  hidden: { opacity: 0, height: 0, overflow: 'hidden' },
+  visible: { 
+    opacity: 1, 
+    height: 'auto',
+    transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1.0] }
+  },
+  exit: { 
+    opacity: 0, 
+    height: 0,
+    transition: { duration: 0.3, ease: [0.25, 0.1, 0.25, 1.0] }
+  }
+}
+
+const buttonVariants = {
+  hover: { 
+    scale: 1.05,
+    boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
+  },
+  tap: { 
+    scale: 0.95 
+  }
+}
 
 interface Task {
   id: number
@@ -48,6 +128,7 @@ interface Department {
 export default function TasksPage() {
   const { user, isManager, isAdmin } = useAuth()
   const router = useRouter()
+  const formRef = useRef<HTMLDivElement>(null)
 
   const [tasks, setTasks] = useState<Task[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
@@ -57,6 +138,8 @@ export default function TasksPage() {
   const [activeTab, setActiveTab] = useState('pending')
   const [showForm, setShowForm] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [sortBy, setSortBy] = useState<string>('created_at')
   
   const [formData, setFormData] = useState({
     title: '',
@@ -271,301 +354,511 @@ export default function TasksPage() {
     (task.department_name && task.department_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (task.assigned_to_name && task.assigned_to_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (task.assigned_by_name && task.assigned_by_name.toLowerCase().includes(searchTerm.toLowerCase()))
-  )
+  ).sort((a, b) => {
+    // Handle sorting
+    let valueA, valueB;
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    )
+    switch (sortBy) {
+      case 'due_date':
+        valueA = a.due_date ? new Date(a.due_date).getTime() : 0;
+        valueB = b.due_date ? new Date(b.due_date).getTime() : 0;
+        break;
+      case 'created_at':
+        valueA = new Date(a.created_at).getTime();
+        valueB = new Date(b.created_at).getTime();
+        break;
+      case 'title':
+        valueA = a.title.toLowerCase();
+        valueB = b.title.toLowerCase();
+        break;
+      default:
+        valueA = new Date(a.created_at).getTime();
+        valueB = new Date(b.created_at).getTime();
+    }
+
+    return sortOrder === 'asc' 
+      ? (valueA > valueB ? 1 : -1)
+      : (valueA < valueB ? 1 : -1);
+  });
+
+  const toggleForm = () => {
+    setShowForm(!showForm);
+    if (!showForm) {
+      setTimeout(() => {
+        formRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        });
+      }, 100);
+    }
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-semibold text-primary">Task Management</h1>
-        {(isAdmin || isManager) && (
-          <Button
-            onClick={() => setShowForm(!showForm)}
-            className="bg-primary text-white"
-          >
-            {showForm ? 'Cancel' : 'Create New Task'}
-          </Button>
-        )}
-      </div>
-
-      {error && (
-        <div className="bg-accent-red/10 text-accent-red p-4 rounded-lg">
-          {error}
-        </div>
-      )}
-
-      {showForm && (
-        <Card>
-          <CardBody>
-            <h2 className="text-xl font-semibold mb-4">Create New Task</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Title*
-                </label>
-                <input
-                  type="text"
-                  name="title"
-                  value={formData.title}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Department
-                </label>
-                <select
-                  name="department_id"
-                  value={formData.department_id || ''}
-                  onChange={handleDepartmentChange}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="">Select Department</option>
-                  {departments.map(dept => (
-                    <option key={dept.id} value={dept.id}>
-                      {dept.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Assign To
-                </label>
-                <select
-                  name="assigned_to"
-                  value={formData.assigned_to || ''}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="">Select Employee</option>
-                  {employees
-                    .filter(emp => 
-                      !formData.department_id || emp.department_id === formData.department_id
-                    )
-                    .map(emp => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.first_name} {emp.last_name} ({emp.position})
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  or Assign To Department
-                </label>
-                <select
-                  name="assigned_to_department"
-                  value={formData.assigned_to_department || ''}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="">Select Department</option>
-                  {departments.map(dept => (
-                    <option key={dept.id} value={dept.id}>
-                      {dept.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Due Date
-                </label>
-                <input
-                  type="date"
-                  name="due_date"
-                  value={formData.due_date}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                />
-              </div>
-
+    <motion.div 
+      className="space-y-6"
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
+      {/* Header Card */}
+      <motion.div variants={itemVariants}>
+        <Card className="border-none bg-[#1C1C1C] overflow-hidden rounded-3xl shadow-xl">
+          <CardBody className="p-6 md:p-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="is_urgent"
-                  name="is_urgent"
-                  checked={formData.is_urgent}
-                  onChange={handleInputChange}
-                  className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-                />
-                <label htmlFor="is_urgent" className="ml-2 block text-sm text-primary">
-                  Urgent
-                </label>
+                <div className="p-3 bg-[#f7eccf]/10 rounded-2xl mr-4">
+                  <Clipboard className="h-6 w-6 text-[#f7eccf]" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-[#f7eccf]">Task Management</h1>
+                  <p className="text-[#f7eccf]/70 text-sm mt-1">
+                    {activeTab === 'pending' ? 'Manage pending tasks' : 
+                     activeTab === 'in_progress' ? 'Track tasks in progress' : 
+                     activeTab === 'completed' ? 'View completed tasks' : 
+                     'All tasks overview'}
+                  </p>
+                </div>
               </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Description*
-                </label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  rows={4}
-                  className="w-full p-2 border rounded-md"
-                  required
-                ></textarea>
-              </div>
-
-              <div className="md:col-span-2">
-                <Button
-                  onClick={handleCreateTask}
-                  className="bg-primary text-white"
+              
+              {(isAdmin || isManager) && (
+                <motion.div
+                  variants={buttonVariants}
+                  whileHover="hover"
+                  whileTap="tap"
                 >
-                  Create Task
-                </Button>
-              </div>
+                  <Button
+                    onClick={toggleForm}
+                    className="bg-[#f7eccf] text-[#1C1C1C] hover:bg-[#e9d8ae] flex items-center gap-2 rounded-full shadow-md px-5 py-2.5"
+                  >
+                    {showForm ? (
+                      <>
+                        <X size={18} />
+                        <span>Cancel</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus size={18} />
+                        <span>Create New Task</span>
+                      </>
+                    )}
+                  </Button>
+                </motion.div>
+              )}
             </div>
           </CardBody>
         </Card>
+      </motion.div>
+
+      {/* Error Alert */}
+      {error && (
+        <motion.div 
+          variants={itemVariants}
+          className="bg-red-500/20 border border-red-500/30 p-4 rounded-2xl text-red-500 flex items-center"
+        >
+          <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+          <p>{error}</p>
+        </motion.div>
       )}
 
-      <div className="bg-white shadow-sm rounded-lg overflow-hidden">
-        <div className="border-b border-gray-200">
-          <nav className="flex -mb-px">
-            <button
-              onClick={() => setActiveTab('pending')}
-              className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                activeTab === 'pending'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-primary-light hover:text-primary hover:border-primary-light'
-              }`}
-            >
-              Pending
-            </button>
-            <button
-              onClick={() => setActiveTab('in_progress')}
-              className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                activeTab === 'in_progress'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-primary-light hover:text-primary hover:border-primary-light'
-              }`}
-            >
-              In Progress
-            </button>
-            <button
-              onClick={() => setActiveTab('completed')}
-              className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                activeTab === 'completed'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-primary-light hover:text-primary hover:border-primary-light'
-              }`}
-            >
-              Completed
-            </button>
-            <button
-              onClick={() => setActiveTab('all')}
-              className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                activeTab === 'all'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-primary-light hover:text-primary hover:border-primary-light'
-              }`}
-            >
-              All
-            </button>
-          </nav>
-        </div>
+      {/* Create Task Form */}
+      <AnimatePresence>
+        {showForm && (
+          <motion.div
+            ref={formRef}
+            variants={formVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
+            <Card className="border-none bg-[#1C1C1C] overflow-hidden rounded-3xl shadow-xl">
+              <CardBody className="p-6">
+                <h2 className="text-xl font-semibold mb-6 text-[#f7eccf] flex items-center">
+                  <Plus className="mr-2 h-5 w-5 text-[#f7eccf]/70" />
+                  Create New Task
+                </h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/80 mb-1.5">
+                      Title*
+                    </label>
+                    <input
+                      type="text"
+                      name="title"
+                      value={formData.title}
+                      onChange={handleInputChange}
+                      className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent transition-all"
+                      required
+                    />
+                  </div>
 
-        <div className="p-4">
-          <SearchBar
-            placeholder="Search tasks..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="mb-4"
-          />
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/80 mb-1.5">
+                      Department
+                    </label>
+                    <div className="relative">
+                      <select
+                        name="department_id"
+                        value={formData.department_id || ''}
+                        onChange={handleDepartmentChange}
+                        className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent appearance-none transition-all"
+                      >
+                        <option value="" className="bg-[#1C1C1C]">Select Department</option>
+                        {departments.map(dept => (
+                          <option key={dept.id} value={dept.id} className="bg-[#1C1C1C]">
+                            {dept.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#f7eccf]/50">
+                        <ChevronDown size={16} />
+                      </div>
+                    </div>
+                  </div>
 
-          {filteredTasks.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              No tasks found.
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/80 mb-1.5">
+                      Assign To
+                    </label>
+                    <div className="relative">
+                      <select
+                        name="assigned_to"
+                        value={formData.assigned_to || ''}
+                        onChange={handleInputChange}
+                        className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent appearance-none transition-all"
+                      >
+                        <option value="" className="bg-[#1C1C1C]">Select Employee</option>
+                        {employees
+                          .filter(emp => 
+                            !formData.department_id || emp.department_id === formData.department_id
+                          )
+                          .map(emp => (
+                            <option key={emp.id} value={emp.id} className="bg-[#1C1C1C]">
+                              {emp.first_name} {emp.last_name} ({emp.position})
+                            </option>
+                          ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#f7eccf]/50">
+                        <ChevronDown size={16} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/80 mb-1.5">
+                      or Assign To Department
+                    </label>
+                    <div className="relative">
+                      <select
+                        name="assigned_to_department"
+                        value={formData.assigned_to_department || ''}
+                        onChange={handleInputChange}
+                        className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent appearance-none transition-all"
+                        disabled={formData.assigned_to !== null}
+                      >
+                        <option value="" className="bg-[#1C1C1C]">Select Department</option>
+                        {departments.map(dept => (
+                          <option key={dept.id} value={dept.id} className="bg-[#1C1C1C]">
+                            {dept.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#f7eccf]/50">
+                        <ChevronDown size={16} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/80 mb-1.5">
+                      Due Date
+                    </label>
+                    <input
+                      type="date"
+                      name="due_date"
+                      value={formData.due_date}
+                      onChange={handleInputChange}
+                      className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent transition-all"
+                    />
+                  </div>
+
+                  <div className="flex items-center">
+                    <label className="inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        id="is_urgent"
+                        name="is_urgent"
+                        checked={formData.is_urgent}
+                        onChange={handleInputChange}
+                        className="sr-only"
+                      />
+                      <div className={`relative w-10 h-5 rounded-full transition-all ${formData.is_urgent ? 'bg-red-500' : 'bg-[#f7eccf]/20'}`}>
+                        <div className={`absolute top-0.5 left-0.5 bg-white w-4 h-4 rounded-full transition-all ${formData.is_urgent ? 'translate-x-5' : ''}`}></div>
+                      </div>
+                      <span className="ml-3 text-sm text-[#f7eccf]">
+                        Urgent Priority
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-[#f7eccf]/80 mb-1.5">
+                      Description*
+                    </label>
+                    <textarea
+                      name="description"
+                      value={formData.description}
+                      onChange={handleInputChange}
+                      rows={4}
+                      className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent transition-all"
+                      required
+                    ></textarea>
+                  </div>
+
+                  <div className="md:col-span-2 flex justify-end">
+                    <motion.div
+                      variants={buttonVariants}
+                      whileHover="hover"
+                      whileTap="tap"
+                    >
+                      <Button
+                        onClick={handleCreateTask}
+                        className="bg-[#f7eccf] text-[#1C1C1C] hover:bg-[#e9d8ae] rounded-full shadow-md px-6 py-3 flex items-center gap-2"
+                      >
+                        <Plus size={18} />
+                        Create Task
+                      </Button>
+                    </motion.div>
+                  </div>
+                </div>
+              </CardBody>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Filter and Search Section */}
+      <motion.div variants={itemVariants}>
+        <Card className="border-none bg-[#1C1C1C] overflow-hidden rounded-3xl shadow-xl">
+          <CardBody className="p-6">
+            <div className="flex flex-col md:flex-row gap-4 justify-between">
+              {/* Navigation Tabs */}
+              <div className="flex-col flex md:flex-row space-1 bg-[#f7eccf]/10 p-1 rounded-xl">
+                {['pending', 'in_progress', 'completed', 'all'].map((tab) => (
+                  <motion.button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all relative ${
+                      activeTab === tab 
+                        ? 'bg-[#f7eccf] text-[#1C1C1C]' 
+                        : 'text-[#f7eccf]/70 hover:text-[#f7eccf]'
+                    }`}
+                    whileHover={{ y: -2 }}
+                    whileTap={{ y: 0 }}
+                  >
+                    {activeTab === tab && (
+                      <motion.div
+                        className="absolute inset-0 bg-[#f7eccf] rounded-lg"
+                        layoutId="tabBackground"
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        style={{ zIndex: -1 }}
+                      />
+                    )}
+                    {tab === 'pending' ? 'Pending' : 
+                     tab === 'in_progress' ? 'In Progress' : 
+                     tab === 'completed' ? 'Completed' : 'All'}
+                  </motion.button>
+                ))}
+              </div>
+
+              {/* Search Bar */}
+              <div className="w-full md:w-1/3">
+                <SearchBar
+                  placeholder="Search tasks..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="bg-[#f7eccf]/5 border-[#f7eccf]/20 text-[#f7eccf] placeholder:text-[#f7eccf]/50 focus:border-[#f7eccf]/50"
+                  containerClassName="w-full"
+                />
+              </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {filteredTasks.map(task => (
-                <Card key={task.id} className={`${task.is_urgent ? 'border-l-4 border-accent-red' : ''}`}>
-                  <CardBody>
-                    <div className="flex flex-col md:flex-row justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center mb-2">
-                          <h3 className="text-lg font-medium text-primary">{task.title}</h3>
-                          {task.is_urgent && (
-                            <span className="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-accent-red text-white">
-                              URGENT
-                            </span>
-                          )}
+
+            {/* Sort Options */}
+            <div className="flex items-center mt-4 pt-4 border-t border-[#f7eccf]/10">
+              <span className="text-sm text-[#f7eccf]/70 mr-3">Sort by:</span>
+              <div className="flex gap-2">
+                {[
+                  { value: 'created_at', label: 'Date Created' },
+                  { value: 'due_date', label: 'Due Date' },
+                  { value: 'title', label: 'Title' }
+                ].map(option => (
+                  <motion.button
+                    key={option.value}
+                    onClick={() => setSortBy(option.value)}
+                    className={`px-3 py-1.5 text-xs rounded-full transition-all ${
+                      sortBy === option.value
+                        ? 'bg-[#f7eccf] text-[#1C1C1C]'
+                        : 'bg-[#f7eccf]/10 text-[#f7eccf]/70 hover:bg-[#f7eccf]/20'
+                    }`}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    {option.label}
+                  </motion.button>
+                ))}
+              </div>
+              <motion.button
+                onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                className="p-2 ml-2 bg-[#f7eccf]/10 rounded-full text-[#f7eccf] hover:bg-[#f7eccf]/20 transition-all"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                title={sortOrder === 'asc' ? 'Sort ascending' : 'Sort descending'}
+              >
+                {sortOrder === 'asc' ? <SortAsc size={16} /> : <SortDesc size={16} />}
+              </motion.button>
+            </div>
+          </CardBody>
+        </Card>
+      </motion.div>
+
+      {/* Tasks List */}
+      {loading ? (
+        <motion.div 
+          variants={itemVariants} 
+          className="flex justify-center items-center py-16"
+        >
+          <motion.div 
+            className="w-12 h-12 rounded-full border-2 border-[#f7eccf] border-t-transparent"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          />
+        </motion.div>
+      ) : filteredTasks.length === 0 ? (
+        <motion.div 
+          variants={itemVariants}
+          className="bg-[#1C1C1C] rounded-3xl shadow-xl py-16 px-6 text-center"
+        >
+          <div className="mx-auto w-16 h-16 bg-[#f7eccf]/10 rounded-full flex items-center justify-center mb-4">
+            <CheckCircle className="h-8 w-8 text-[#f7eccf]/50" />
+          </div>
+          <h3 className="text-xl font-semibold text-[#f7eccf] mb-2">No tasks found</h3>
+          <p className="text-[#f7eccf]/70 max-w-md mx-auto">
+            {searchTerm 
+              ? "No tasks match your search criteria. Try adjusting your search."
+              : activeTab !== 'all'
+                ? `No ${activeTab.replace('_', ' ')} tasks found.`
+                : "No tasks have been created yet."}
+          </p>
+        </motion.div>
+      ) : (
+        <motion.div variants={containerVariants} className="space-y-4">
+          {filteredTasks.map(task => (
+            <motion.div 
+              key={task.id} 
+              variants={cardVariants}
+              whileHover="hover"
+              className="relative"
+            >
+              <Card className={`border-none bg-[#1C1C1C] overflow-hidden rounded-3xl shadow-xl ${
+                task.is_urgent ? 'border-l-4 border-red-500' : ''
+              }`}>
+                <CardBody className="p-6">
+                  <div className="flex flex-col md:flex-row justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center mb-3">
+                        <h3 className="text-lg font-medium text-[#f7eccf]">{task.title}</h3>
+                        {task.is_urgent && (
+                          <span className="ml-2 px-3 py-1 text-xs font-semibold rounded-full bg-red-500/20 text-red-500 flex items-center">
+                            <Flag size={12} className="mr-1" />
+                            URGENT
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[#f7eccf]/80 mb-4 line-clamp-2">{task.description}</p>
+                      <div className="grid grid-cols-2 gap-y-2 text-sm text-[#f7eccf]/60">
+                        <div className="flex items-center">
+                          <Users size={14} className="mr-2 text-[#f7eccf]/40" />
+                          <span>{task.department_name || 'No Department'}</span>
                         </div>
-                        <p className="text-sm text-gray-600 mb-2">{task.description}</p>
-                        <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-2">
-                          <div>
-                            <span className="font-semibold">Department:</span> {task.department_name || 'Not assigned'}
-                          </div>
-                          <div>
-                            <span className="font-semibold">Assigned by:</span> {task.assigned_by_name || 'System'}
-                          </div>
-                          <div>
-                            <span className="font-semibold">Assigned to:</span> {task.assigned_to_name || 'Unassigned'}
-                            {!task.assigned_to_name && task.assigned_to_department_name && ` (Department: ${task.assigned_to_department_name})`}
-                          </div>
-                          <div>
-                            <span className="font-semibold">Due date:</span> {task.due_date ? new Date(task.due_date).toLocaleDateString() : 'Not specified'}
-                          </div>
-                          <div>
-                            <span className="font-semibold">Created:</span> {new Date(task.created_at).toLocaleDateString()}
-                          </div>
-                          {task.completed_at && (
-                            <div>
-                              <span className="font-semibold">Completed:</span> {new Date(task.completed_at).toLocaleDateString()}
-                            </div>
+                        <div className="flex items-center">
+                          <UserCheck size={14} className="mr-2 text-[#f7eccf]/40" />
+                          <span>{task.assigned_by_name || 'System'}</span>
+                        </div>
+                        <div className="flex items-center">
+                          <span className="mr-2 w-3 h-3 rounded-full bg-[#f7eccf]/20 flex-shrink-0"></span>
+                          <span>{task.assigned_to_name || 'Unassigned'}
+                            {!task.assigned_to_name && task.assigned_to_department_name && 
+                              ` (Dept: ${task.assigned_to_department_name})`}
+                          </span>
+                        </div>
+                        <div className="flex items-center">
+                          {task.due_date ? (
+                            <>
+                              <Calendar size={14} className="mr-2 text-[#f7eccf]/40" />
+                              <span>{new Date(task.due_date).toLocaleDateString()}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Clock size={14} className="mr-2 text-[#f7eccf]/40" />
+                              <span>No due date</span>
+                            </>
                           )}
                         </div>
                       </div>
-                      <div className="flex flex-col justify-between mt-4 md:mt-0 md:ml-4">
-                        <div className="mb-2">
-                          <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                            task.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                            task.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                            'bg-green-100 text-green-800'
-                          }`}>
-                            {task.status === 'pending' ? 'Pending' :
-                            task.status === 'in_progress' ? 'In Progress' :
-                            'Completed'}
-                          </span>
-                        </div>
-                        {(isAdmin || isManager || user?.employee_id === task.assigned_to) && task.status !== 'completed' && (
-                          <div className="flex flex-col space-y-2">
-                            {task.status === 'pending' && (
+                    </div>
+                    <div className="flex flex-col mt-4 md:mt-0 md:ml-6 md:min-w-[180px] justify-between">
+                      <div className="mb-4">
+                        <span className={`inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-full ${
+                          task.status === 'pending' ? 'bg-amber-500/20 text-amber-500' :
+                          task.status === 'in_progress' ? 'bg-blue-500/20 text-blue-500' :
+                          'bg-green-500/20 text-green-500'
+                        }`}>
+                          {task.status === 'pending' && <Clock size={12} className="mr-1" />}
+                          {task.status === 'in_progress' && <ArrowRight size={12} className="mr-1" />}
+                          {task.status === 'completed' && <Check size={12} className="mr-1" />}
+                          {task.status === 'pending' ? 'Pending' :
+                          task.status === 'in_progress' ? 'In Progress' :
+                          'Completed'}
+                        </span>
+                      </div>
+                      
+                      {(isAdmin || isManager || user?.employee_id === task.assigned_to) && task.status !== 'completed' && (
+                        <div className="space-y-2">
+                          {task.status === 'pending' && (
+                            <motion.div
+                              variants={buttonVariants}
+                              whileHover="hover"
+                              whileTap="tap"
+                            >
                               <Button
                                 onClick={() => updateTaskStatus(task.id, 'in_progress')}
-                                className="bg-blue-500 text-white text-xs px-2 py-1"
+                                className="w-full bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-2 rounded-xl flex items-center justify-center gap-1"
                                 size="sm"
                               >
-                                Start
+                                <ArrowRight size={14} />
+                                Start Task
                               </Button>
-                            )}
-                            {task.status === 'in_progress' && (
+                            </motion.div>
+                          )}
+                          {task.status === 'in_progress' && (
+                            <motion.div
+                              variants={buttonVariants}
+                              whileHover="hover"
+                              whileTap="tap"
+                            >
                               <Button
                                 onClick={() => updateTaskStatus(task.id, 'completed')}
-                                className="bg-green-500 text-white text-xs px-2 py-1"
+                                className="w-full bg-green-500 hover:bg-green-600 text-white text-xs px-2 py-2 rounded-xl flex items-center justify-center gap-1"
                                 size="sm"
                               >
-                                Complete
+                                <Check size={14} />
+                                Complete Task
                               </Button>
-                            )}
-                            {(isAdmin || isManager) && !task.assigned_to && (
+                            </motion.div>
+                          )}
+                          
+                          {(isAdmin || isManager) && !task.assigned_to && (
+                            <div className="relative">
                               <select
                                 onChange={(e) => {
                                   const selectedEmployeeId = e.target.value ? parseInt(e.target.value) : null;
@@ -573,31 +866,54 @@ export default function TasksPage() {
                                     assignTask(task.id, selectedEmployeeId, null);
                                   }
                                 }}
-                                className="mt-2 p-1 text-xs border border-gray-300 rounded"
+                                className="w-full p-2 text-xs bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent appearance-none transition-all"
                                 defaultValue=""
                               >
-                                <option value="" disabled>Assign to employee</option>
+                                <option value="" disabled className="bg-[#1C1C1C]">Assign to employee</option>
                                 {employees
                                   .filter(emp => !task.department_id || emp.department_id === task.department_id)
                                   .map(emp => (
-                                    <option key={emp.id} value={emp.id}>
+                                    <option key={emp.id} value={emp.id} className="bg-[#1C1C1C]">
                                       {emp.first_name} {emp.last_name}
                                     </option>
                                   ))
                                 }
                               </select>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-[#f7eccf]/50">
+                                <ChevronDown size={14} />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      <motion.div
+                        variants={buttonVariants}
+                        whileHover="hover"
+                        whileTap="tap"
+                        className="mt-2"
+                      >
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full border-[#f7eccf]/30 text-[#f7eccf] hover:bg-[#f7eccf]/10 rounded-xl flex items-center justify-center gap-1"
+                          onClick={() => {
+                            // This is a placeholder for task details view
+                            console.log('View task details:', task.id);
+                          }}
+                        >
+                          <ExternalLink size={14} />
+                          View Details
+                        </Button>
+                      </motion.div>
                     </div>
-                  </CardBody>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+                  </div>
+                </CardBody>
+              </Card>
+            </motion.div>
+          ))}
+        </motion.div>
+      )}
+    </motion.div>
   )
 }
