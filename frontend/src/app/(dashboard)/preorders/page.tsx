@@ -1,13 +1,97 @@
 // app/(dashboard)/preorders/page.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence, Variants } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { Card, CardBody } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/services/api'
-import SearchBar from '@/components/ui/SearchBar'
+import { SearchBar } from '@/components/ui/SearchBar'
+import { 
+  Package, 
+  AlertCircle, 
+  Plus, 
+  X, 
+  ChevronDown,
+  ChevronRight,
+  Search,
+  Calendar, 
+  Clock, 
+  Users,
+  CheckCircle,
+  XCircle,
+  Edit,
+  Trash2,
+  Filter,
+  ArrowRight,
+  ShoppingCart,
+  DollarSign,
+  Truck,
+  FileText,
+  RefreshCw,
+  Check
+} from 'lucide-react'
+
+// Animation variants
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05,
+      delayChildren: 0.1
+    }
+  }
+}
+
+const itemVariants: Variants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1.0] }
+  }
+}
+
+const cardVariants: Variants = {
+  hidden: { y: 15, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1.0] }
+  },
+  hover: {
+    y: -8,
+    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+    transition: { duration: 0.3 }
+  }
+}
+
+const formVariants: Variants = {
+  hidden: { opacity: 0, height: 0, overflow: 'hidden' },
+  visible: { 
+    opacity: 1, 
+    height: 'auto',
+    transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1.0] }
+  },
+  exit: { 
+    opacity: 0, 
+    height: 0,
+    transition: { duration: 0.3, ease: [0.25, 0.1, 0.25, 1.0] }
+  }
+}
+
+const buttonVariants = {
+  hover: { 
+    scale: 1.05,
+    boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
+  },
+  tap: { 
+    scale: 0.95 
+  }
+}
 
 interface PreOrder {
   id: number
@@ -63,6 +147,7 @@ interface PreOrderFormData {
 export default function PreOrdersPage() {
   const { user, isManager, isAdmin } = useAuth()
   const router = useRouter()
+  const formRef = useRef<HTMLDivElement>(null)
 
   const [preorders, setPreorders] = useState<PreOrder[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
@@ -86,11 +171,6 @@ export default function PreOrdersPage() {
     id: number | null;
     type: string | null;
   }>({ id: null, type: null })
-  const [pagination, setPagination] = useState({
-    currentPage: 0,
-    limit: 10,
-    total: 0
-  })
   
   // New states for edit functionality
   const [isEditing, setIsEditing] = useState(false)
@@ -114,6 +194,12 @@ export default function PreOrdersPage() {
   }
   
   const [formData, setFormData] = useState<PreOrderFormData>(emptyFormData)
+  
+  const [pagination, setPagination] = useState({
+    currentPage: 0,
+    limit: 10,
+    total: 0
+  })
 
   useEffect(() => {
     const fetchData = async () => {
@@ -320,6 +406,7 @@ export default function PreOrdersPage() {
 
   // New function to handle edit pre-order
   const editPreOrder = (preorder: PreOrder) => {
+    // First set all the form data
     setFormData({
       customer_name: preorder.customer_name,
       customer_email: preorder.customer_email,
@@ -335,12 +422,41 @@ export default function PreOrdersPage() {
       status: preorder.status
     });
     
+    // Set editing state
     setIsEditing(true);
     setEditingId(preorder.id);
+    
+    // Show the form and scroll after a delay to ensure the form is rendered
     setShowForm(true);
     
-    // Scroll to the form
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Use a longer delay to ensure the form is fully rendered and animated in
+    setTimeout(() => {
+      // Try using the ref first
+      if (formRef.current) {
+        formRef.current.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        });
+      } else {
+        // Fallback to scrolling to top if ref is not available
+        window.scrollTo({ 
+          top: 0, 
+          behavior: 'smooth' 
+        });
+      }
+      
+      // Additional fallback - try again with a longer delay if needed
+      setTimeout(() => {
+        if (formRef.current) {
+          // Use a more direct scrolling method as a fallback
+          const yOffset = formRef.current.getBoundingClientRect().top + window.pageYOffset - 20;
+          window.scrollTo({
+            top: yOffset,
+            behavior: 'smooth'
+          });
+        }
+      }, 300);
+    }, 200);
   };
   
   // New function to handle delete pre-order
@@ -505,516 +621,752 @@ export default function PreOrdersPage() {
     return completedDate < thirtyDaysAgo;
   };
 
+  const toggleForm = () => {
+    setShowForm(!showForm);
+    if (!showForm) {
+      // Wait for state update and component to render
+      setTimeout(() => {
+        // Try scrolling to the form element directly
+        const formElement = document.getElementById('preorderForm');
+        if (formElement) {
+          formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else if (formRef.current) {
+          formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 200);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        <motion.div 
+          className="w-16 h-16 rounded-full border-4 border-[#f7eccf] border-t-transparent"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+        />
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-semibold text-primary">Pre-Order Management</h1>
-        {!isEditing ? (
-          <Button
-            onClick={() => setShowForm(!showForm)}
-            className="bg-primary text-white"
-          >
-            {showForm ? 'Cancel' : 'Create New Pre-Order'}
-          </Button>
-        ) : (
-          <div className="text-lg font-medium">Editing Pre-Order #{editingId}</div>
-        )}
-      </div>
-
-      {error && (
-        <div className="bg-accent-red/10 text-accent-red p-4 rounded-lg">
-          {error}
-        </div>
-      )}
-
-      {showForm && (
-        <Card>
-          <CardBody>
-            <h2 className="text-xl font-semibold mb-4">
-              {isEditing ? `Edit Pre-Order #${editingId}` : 'Create New Pre-Order'}
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Customer Name*
-                </label>
-                <input
-                  type="text"
-                  name="customer_name"
-                  value={formData.customer_name}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                  required
-                />
+    <motion.div 
+      className="space-y-6"
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
+      {/* Header Card */}
+      <motion.div variants={itemVariants}>
+        <Card className="border-none bg-[#1C1C1C] overflow-hidden rounded-3xl shadow-xl">
+          <CardBody className="p-6 md:p-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="flex items-center">
+                <div className="p-3 bg-[#f7eccf]/10 rounded-2xl mr-4">
+                  <Package className="h-6 w-6 text-[#f7eccf]" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-[#f7eccf]">Pre-Order Management</h1>
+                  <p className="text-[#f7eccf]/70 text-sm mt-1">
+                    {activeTab === 'pending' ? 'Manage pending pre-orders' : 
+                     activeTab === 'in_progress' ? 'Track pre-orders in progress' : 
+                     activeTab === 'completed' ? 'View completed pre-orders' : 
+                     activeTab === 'cancelled' ? 'View cancelled pre-orders' :
+                     'All pre-orders overview'}
+                  </p>
+                </div>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Customer Email
-                </label>
-                <input
-                  type="email"
-                  name="customer_email"
-                  value={formData.customer_email || ''}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Customer Phone
-                </label>
-                <input
-                  type="tel"
-                  name="customer_phone"
-                  value={formData.customer_phone || ''}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Order Type*
-                </label>
-                <select
-                  name="order_type"
-                  value={formData.order_type}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                  required
+              
+              {!isEditing ? (
+                <motion.div
+                  variants={buttonVariants}
+                  whileHover="hover"
+                  whileTap="tap"
                 >
-                  <option value="custom_order">Custom Order</option>
-                  <option value="bulk_order">Bulk Order</option>
-                  <option value="special_event">Special Event</option>
-                  <option value="seasonal_item">Seasonal Item</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Department*
-                </label>
-                <select
-                  name="target_department"
-                  value={formData.target_department || ''}
-                  onChange={handleDepartmentChange}
-                  className="w-full p-2 border rounded-md"
-                  required
-                >
-                  <option value="">Select Department</option>
-                  {departments.map(dept => (
-                    <option key={dept.id} value={dept.id}>
-                      {dept.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Assign To
-                </label>
-                <select
-                  name="assigned_to"
-                  value={formData.assigned_to || ''}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="">Auto-assign to Department Manager</option>
-                  {employees
-                    .filter(emp => 
-                      !formData.target_department || emp.department_id === formData.target_department
-                    )
-                    .map(emp => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.first_name} {emp.last_name} ({emp.position})
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Quantity
-                </label>
-                <input
-                  type="number"
-                  name="quantity"
-                  value={formData.quantity || ''}
-                  onChange={handleInputChange}
-                  min="1"
-                  className="w-full p-2 border rounded-md"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Estimated Price
-                </label>
-                <input
-                  type="number"
-                  name="estimated_price"
-                  value={formData.estimated_price || ''}
-                  onChange={handleInputChange}
-                  step="0.01"
-                  min="0"
-                  className="w-full p-2 border rounded-md"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Pickup Date
-                </label>
-                <input
-                  type="date"
-                  name="pickup_date"
-                  value={formData.pickup_date || ''}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Description*
-                </label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  rows={4}
-                  className="w-full p-2 border rounded-md"
-                  required
-                ></textarea>
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Special Instructions
-                </label>
-                <textarea
-                  name="special_instructions"
-                  value={formData.special_instructions || ''}
-                  onChange={handleInputChange}
-                  rows={2}
-                  className="w-full p-2 border rounded-md"
-                ></textarea>
-              </div>
-
-              <div className="md:col-span-2 flex space-x-2">
-                {isEditing ? (
-                  <>
-                    <Button
-                      onClick={handleSaveEditedPreOrder}
-                      className="bg-primary text-white flex-1"
-                      disabled={actionLoading.id === editingId && actionLoading.type === 'edit'}
-                    >
-                      {actionLoading.id === editingId && actionLoading.type === 'edit' ? (
-                        <span className="inline-flex items-center">
-                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Saving Changes...
-                        </span>
-                      ) : (
-                        'Save Changes'
-                      )}
-                    </Button>
-                    <Button
-                      onClick={handleCancelEdit}
-                      className="bg-gray-300 text-gray-800 flex-1"
-                    >
-                      Cancel
-                    </Button>
-                  </>
-                ) : (
                   <Button
-                    onClick={handleCreatePreOrder}
-                    className="bg-primary text-white w-full"
-                    disabled={actionLoading.id === 0 && actionLoading.type === 'create'}
+                    onClick={toggleForm}
+                    className="bg-[#f7eccf] text-[#1C1C1C] hover:bg-[#e9d8ae] flex items-center gap-2 rounded-full shadow-md px-5 py-2.5"
                   >
-                    {actionLoading.id === 0 && actionLoading.type === 'create' ? (
-                      <span className="inline-flex items-center">
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Creating Pre-Order...
-                      </span>
+                    {showForm ? (
+                      <>
+                        <X size={18} />
+                        <span>Cancel</span>
+                      </>
                     ) : (
-                      'Create Pre-Order'
+                      <>
+                        <Plus size={18} />
+                        <span>Create New Pre-Order</span>
+                      </>
                     )}
                   </Button>
-                )}
-              </div>
+                </motion.div>
+              ) : (
+                <div className="bg-[#f7eccf]/10 px-4 py-2 rounded-full text-[#f7eccf]">
+                  <span className="flex items-center gap-2">
+                    <Edit size={16} />
+                    Editing Pre-Order #{editingId}
+                  </span>
+                </div>
+              )}
             </div>
           </CardBody>
         </Card>
+      </motion.div>
+
+      {/* Error Alert */}
+      {error && (
+        <motion.div 
+          variants={itemVariants}
+          className="bg-red-500/20 border border-red-500/30 p-4 rounded-2xl text-red-500 flex items-center"
+        >
+          <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+          <p>{error}</p>
+        </motion.div>
       )}
 
-      <div className="bg-white shadow-sm rounded-lg overflow-hidden">
-        <div className="border-b border-gray-200">
-          <nav className="flex -mb-px">
-            <button
-              onClick={() => setActiveTab('pending')}
-              className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                activeTab === 'pending'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-primary-light hover:text-primary hover:border-primary-light'
-              }`}
-            >
-              Pending
-            </button>
-            <button
-              onClick={() => setActiveTab('in_progress')}
-              className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                activeTab === 'in_progress'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-primary-light hover:text-primary hover:border-primary-light'
-              }`}
-            >
-              In Progress
-            </button>
-            <button
-              onClick={() => setActiveTab('completed')}
-              className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                activeTab === 'completed'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-primary-light hover:text-primary hover:border-primary-light'
-              }`}
-            >
-              Completed
-            </button>
-            <button
-              onClick={() => setActiveTab('cancelled')}
-              className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                activeTab === 'cancelled'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-primary-light hover:text-primary hover:border-primary-light'
-              }`}
-            >
-              Cancelled
-            </button>
-            <button
-              onClick={() => setActiveTab('all')}
-              className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                activeTab === 'all'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-primary-light hover:text-primary hover:border-primary-light'
-              }`}
-            >
-              All
-            </button>
-          </nav>
-        </div>
+      {/* Create/Edit Pre-Order Form */}
+      <AnimatePresence>
+        {showForm && (
+          <motion.div
+            ref={formRef}
+            variants={formVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            id="preorderForm"
+          >
+            <Card className="border-none bg-[#1C1C1C] overflow-hidden rounded-3xl shadow-xl">
+              <CardBody className="p-6">
+                <h2 className="text-xl font-semibold mb-6 text-[#f7eccf] flex items-center">
+                  {isEditing ? (
+                    <>
+                      <Edit className="mr-2 h-5 w-5 text-[#f7eccf]/70" />
+                      Edit Pre-Order #{editingId}
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="mr-2 h-5 w-5 text-[#f7eccf]/70" />
+                      Create New Pre-Order
+                    </>
+                  )}
+                </h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/80 mb-1.5">
+                      Customer Name*
+                    </label>
+                    <input
+                      type="text"
+                      name="customer_name"
+                      value={formData.customer_name}
+                      onChange={handleInputChange}
+                      className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent transition-all"
+                      required
+                    />
+                  </div>
 
-        <div className="p-4">
-          <div className="flex flex-col md:flex-row gap-4 mb-4">
-            <div className="flex-1">
-              <SearchBar
-                placeholder="Search pre-orders..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/80 mb-1.5">
+                      Customer Email
+                    </label>
+                    <input
+                      type="email"
+                      name="customer_email"
+                      value={formData.customer_email || ''}
+                      onChange={handleInputChange}
+                      className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/80 mb-1.5">
+                      Customer Phone
+                    </label>
+                    <input
+                      type="tel"
+                      name="customer_phone"
+                      value={formData.customer_phone || ''}
+                      onChange={handleInputChange}
+                      className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/80 mb-1.5">
+                      Order Type*
+                    </label>
+                    <div className="relative">
+                      <select
+                        name="order_type"
+                        value={formData.order_type}
+                        onChange={handleInputChange}
+                        className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent appearance-none transition-all"
+                        required
+                      >
+                        <option value="custom_order" className="bg-[#1C1C1C]">Custom Order</option>
+                        <option value="bulk_order" className="bg-[#1C1C1C]">Bulk Order</option>
+                        <option value="special_event" className="bg-[#1C1C1C]">Special Event</option>
+                        <option value="seasonal_item" className="bg-[#1C1C1C]">Seasonal Item</option>
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#f7eccf]/50">
+                        <ChevronDown size={16} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/80 mb-1.5">
+                      Department*
+                    </label>
+                    <div className="relative">
+                      <select
+                        name="target_department"
+                        value={formData.target_department || ''}
+                        onChange={handleDepartmentChange}
+                        className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent appearance-none transition-all"
+                        required
+                      >
+                        <option value="" className="bg-[#1C1C1C]">Select Department</option>
+                        {departments.map(dept => (
+                          <option key={dept.id} value={dept.id} className="bg-[#1C1C1C]">
+                            {dept.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#f7eccf]/50">
+                        <ChevronDown size={16} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/80 mb-1.5">
+                      Assign To
+                    </label>
+                    <div className="relative">
+                      <select
+                        name="assigned_to"
+                        value={formData.assigned_to || ''}
+                        onChange={handleInputChange}
+                        className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent appearance-none transition-all"
+                      >
+                        <option value="" className="bg-[#1C1C1C]">Auto-assign to Department Manager</option>
+                        {employees
+                          .filter(emp => 
+                            !formData.target_department || emp.department_id === formData.target_department
+                          )
+                          .map(emp => (
+                            <option key={emp.id} value={emp.id} className="bg-[#1C1C1C]">
+                              {emp.first_name} {emp.last_name} ({emp.position})
+                            </option>
+                          ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#f7eccf]/50">
+                        <ChevronDown size={16} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/80 mb-1.5">
+                      Quantity
+                    </label>
+                    <input
+                      type="number"
+                      name="quantity"
+                      value={formData.quantity || ''}
+                      onChange={handleInputChange}
+                      min="1"
+                      className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/80 mb-1.5">
+                      Estimated Price
+                    </label>
+                    <input
+                      type="number"
+                      name="estimated_price"
+                      value={formData.estimated_price || ''}
+                      onChange={handleInputChange}
+                      step="0.01"
+                      min="0"
+                      className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/80 mb-1.5">
+                      Pickup Date
+                    </label>
+                    <input
+                      type="date"
+                      name="pickup_date"
+                      value={formData.pickup_date || ''}
+                      onChange={handleInputChange}
+                      className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent transition-all"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-[#f7eccf]/80 mb-1.5">
+                      Description*
+                    </label>
+                    <textarea
+                      name="description"
+                      value={formData.description}
+                      onChange={handleInputChange}
+                      rows={4}
+                      className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent transition-all"
+                      required
+                    ></textarea>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-[#f7eccf]/80 mb-1.5">
+                      Special Instructions
+                    </label>
+                    <textarea
+                      name="special_instructions"
+                      value={formData.special_instructions || ''}
+                      onChange={handleInputChange}
+                      rows={2}
+                      className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent transition-all"
+                    ></textarea>
+                  </div>
+
+                  <div className="md:col-span-2 flex justify-end space-x-4">
+                    {isEditing ? (
+                      <>
+                        <motion.div
+                          variants={buttonVariants}
+                          whileHover="hover"
+                          whileTap="tap"
+                        >
+                          <Button
+                            onClick={handleCancelEdit}
+                            className="bg-[#333333] text-[#f7eccf] hover:bg-[#444444] rounded-full shadow-md px-6 py-3"
+                          >
+                            Cancel
+                          </Button>
+                        </motion.div>
+                        <motion.div
+                          variants={buttonVariants}
+                          whileHover="hover"
+                          whileTap="tap"
+                        >
+                          <Button
+                            onClick={handleSaveEditedPreOrder}
+                            className="bg-[#f7eccf] text-[#1C1C1C] hover:bg-[#e9d8ae] rounded-full shadow-md px-6 py-3 flex items-center gap-2"
+                            disabled={actionLoading.id === editingId && actionLoading.type === 'edit'}
+                          >
+                            {actionLoading.id === editingId && actionLoading.type === 'edit' ? (
+                              <>
+                                <motion.div
+                                  className="w-4 h-4 border-2 border-[#1C1C1C] border-t-transparent rounded-full mr-2"
+                                  animate={{ rotate: 360 }}
+                                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                />
+                                Saving...
+                              </>
+                            ) : (
+                              <>
+                                <Check size={18} />
+                                Save Changes
+                              </>
+                            )}
+                          </Button>
+                        </motion.div>
+                      </>
+                    ) : (
+                      <motion.div
+                        variants={buttonVariants}
+                        whileHover="hover"
+                        whileTap="tap"
+                      >
+                        <Button
+                          onClick={handleCreatePreOrder}
+                          className="bg-[#f7eccf] text-[#1C1C1C] hover:bg-[#e9d8ae] rounded-full shadow-md px-6 py-3 flex items-center gap-2"
+                          disabled={actionLoading.id === 0 && actionLoading.type === 'create'}
+                        >
+                          {actionLoading.id === 0 && actionLoading.type === 'create' ? (
+                            <>
+                              <motion.div
+                                className="w-4 h-4 border-2 border-[#1C1C1C] border-t-transparent rounded-full mr-2"
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                              />
+                              Creating...
+                            </>
+                          ) : (
+                            <>
+                              <Plus size={18} />
+                              Create Pre-Order
+                            </>
+                          )}
+                        </Button>
+                      </motion.div>
+                    )}
+                  </div>
+                </div>
+              </CardBody>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Filter and Search Section */}
+      <motion.div variants={itemVariants}>
+        <Card className="border-none bg-[#1C1C1C] overflow-hidden rounded-3xl shadow-xl">
+          <CardBody className="p-6">
+            <div className="flex flex-col md:flex-row gap-4 justify-between mb-4">
+              {/* Navigation Tabs */}
+              <div className="flex-col flex md:flex-row space-1 bg-[#f7eccf]/10 p-1 rounded-xl">
+                {['pending', 'in_progress', 'completed', 'cancelled', 'all'].map((tab) => (
+                  <motion.button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all relative ${
+                      activeTab === tab 
+                        ? 'bg-[#f7eccf] text-[#1C1C1C]' 
+                        : 'text-[#f7eccf]/70 hover:text-[#f7eccf]'
+                    }`}
+                    whileHover={{ y: -2 }}
+                    whileTap={{ y: 0 }}
+                  >
+                    {activeTab === tab && (
+                      <motion.div
+                        className="absolute inset-0 bg-[#f7eccf] rounded-lg"
+                        layoutId="tabBackground"
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        style={{ zIndex: -1 }}
+                      />
+                    )}
+                    {tab.charAt(0).toUpperCase() + tab.slice(1).replace('_', ' ')}
+                  </motion.button>
+                ))}
+              </div>
+
+              {/* Search Bar */}
+              <div className="w-full md:w-1/3">
+                <SearchBar
+                  placeholder="Search pre-orders..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="bg-[#f7eccf]/5 border-[#f7eccf]/20 text-[#f7eccf] placeholder:text-[#f7eccf]/50 focus:border-[#f7eccf]/50"
+                  containerClassName="w-full"
+                />
+              </div>
             </div>
-            
-            {/* Department filter for admins */}
+
+            {/* Department Filter (for admins) */}
             {isAdmin && (
-              <div className="md:w-64">
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Filter by Department
-                </label>
-                <select 
-                  value={selectedDepartment || ''} 
-                  onChange={(e) => setSelectedDepartment(e.target.value ? Number(e.target.value) : null)}
-                  className="w-full p-2 border rounded-md"
+              <div className="flex items-center pt-4 border-t border-[#f7eccf]/10">
+                <div className="flex items-center gap-2 text-[#f7eccf]/70 mr-3">
+                  <Filter size={16} />
+                  <span className="text-sm">Filter by Department:</span>
+                </div>
+                <div className="w-64 relative">
+                  <select 
+                    value={selectedDepartment || ''} 
+                    onChange={(e) => setSelectedDepartment(e.target.value ? Number(e.target.value) : null)}
+                    className="w-full p-2 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent appearance-none transition-all text-sm"
+                  >
+                    <option value="" className="bg-[#1C1C1C]">All Departments</option>
+                    {departments.map(dept => (
+                      <option key={dept.id} value={dept.id} className="bg-[#1C1C1C]">{dept.name}</option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#f7eccf]/50">
+                    <ChevronDown size={14} />
+                  </div>
+                </div>
+                <motion.button
+                  onClick={() => refreshPreOrders()}
+                  className="ml-3 p-2 bg-[#f7eccf]/10 rounded-full text-[#f7eccf] hover:bg-[#f7eccf]/20 transition-all"
+                  whileHover={{ rotate: 180 }}
+                  transition={{ duration: 0.5 }}
                 >
-                  <option value="">All Departments</option>
-                  {departments.map(dept => (
-                    <option key={dept.id} value={dept.id}>{dept.name}</option>
-                  ))}
-                </select>
+                  <RefreshCw size={16} />
+                </motion.button>
               </div>
             )}
-          </div>
+          </CardBody>
+        </Card>
+      </motion.div>
 
-          {filteredPreOrders.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              No pre-orders found.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {filteredPreOrders.map(preorder => (
-                <Card key={preorder.id}>
-                  <CardBody>
-                    <div className="flex flex-col md:flex-row justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center mb-2">
-                          <h3 className="text-lg font-medium text-primary">{preorder.customer_name}</h3>
-                          <span className="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-black text-white">
-                            {preorder.order_type.replace('_', ' ').toUpperCase()}
+      {/* Pre-Orders List */}
+      {filteredPreOrders.length === 0 ? (
+        <motion.div 
+          variants={itemVariants}
+          className="bg-[#1C1C1C] rounded-3xl shadow-xl py-16 px-6 text-center"
+        >
+          <div className="mx-auto w-16 h-16 bg-[#f7eccf]/10 rounded-full flex items-center justify-center mb-4">
+            <Package className="h-8 w-8 text-[#f7eccf]/50" />
+          </div>
+          <h3 className="text-xl font-semibold text-[#f7eccf] mb-2">No pre-orders found</h3>
+          <p className="text-[#f7eccf]/70 max-w-md mx-auto">
+            {searchTerm 
+              ? "No pre-orders match your search criteria. Try adjusting your search."
+              : activeTab !== 'all'
+                ? `No ${activeTab.replace('_', ' ')} pre-orders found.`
+                : "No pre-orders have been created yet."}
+          </p>
+          {activeTab !== 'pending' && (
+            <motion.div
+              className="mt-6"
+              variants={buttonVariants}
+              whileHover="hover"
+              whileTap="tap"
+            >
+              <Button
+                onClick={() => setActiveTab('pending')}
+                className="bg-[#f7eccf] text-[#1C1C1C] hover:bg-[#e9d8ae] rounded-full shadow-md px-5 py-2.5 inline-flex items-center gap-2"
+              >
+                <Filter size={16} />
+                View Pending Pre-Orders
+              </Button>
+            </motion.div>
+          )}
+        </motion.div>
+      ) : (
+        <motion.div variants={containerVariants} className="space-y-4">
+          {filteredPreOrders.map(preorder => (
+            <motion.div 
+              key={preorder.id} 
+              variants={cardVariants}
+              whileHover="hover"
+              className="relative"
+            >
+              <Card className="border-none bg-[#1C1C1C] overflow-hidden rounded-3xl shadow-xl">
+                <CardBody className="p-6">
+                  <div className="flex flex-col md:flex-row justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center mb-3">
+                        <h3 className="text-lg font-medium text-[#f7eccf]">{preorder.customer_name}</h3>
+                        <span className="ml-2 px-3 py-1 text-xs font-semibold rounded-full bg-[#f7eccf]/10 text-[#f7eccf] flex items-center">
+                          <ShoppingCart size={12} className="mr-1" />
+                          {preorder.order_type.replace('_', ' ').toUpperCase()}
+                        </span>
+                        {preorder.status === 'cancelled' && (
+                          <span className="ml-2 px-3 py-1 text-xs font-semibold rounded-full bg-red-500/20 text-red-500 flex items-center">
+                            <XCircle size={12} className="mr-1" />
+                            CANCELLED
                           </span>
-                          {preorder.status === 'cancelled' && (
-                            <span className="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-red-500 text-white">
-                              CANCELLED
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600 mb-2">{preorder.description}</p>
-                        <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-2">
-                          <div>
-                            <span className="font-semibold">Department:</span> {preorder.target_department_name || 'Not assigned'}
-                          </div>
-                          <div>
-                            <span className="font-semibold">Requested by:</span> {preorder.requested_by_name || `Employee ID: ${preorder.requested_by}`}
-                          </div>
-                          <div>
-                            <span className="font-semibold">Assigned to:</span> {preorder.assigned_to_name || 'Unassigned'}
-                          </div>
-                          <div>
-                            <span className="font-semibold">Quantity:</span> {preorder.quantity || 'N/A'}
-                          </div>
-                          <div>
-                            <span className="font-semibold">Est. Price:</span> {formatPrice(preorder.estimated_price)}
-                          </div>
-                          <div>
-                            <span className="font-semibold">Pickup date:</span> {preorder.pickup_date ? new Date(preorder.pickup_date).toLocaleDateString() : 'Not specified'}
-                          </div>
-                        </div>
-                        {preorder.special_instructions && (
-                          <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded mb-2">
-                            <span className="font-semibold">Special Instructions:</span> {preorder.special_instructions}
-                          </div>
                         )}
                       </div>
-                      <div className="flex flex-col justify-between mt-4 md:mt-0 md:ml-4">
-                        <div className="mb-2">
-                          <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                            preorder.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                            preorder.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                            preorder.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                            'bg-green-100 text-green-800'
-                          }`}>
-                            {preorder.status === 'pending' ? 'Pending' :
-                            preorder.status === 'in_progress' ? 'In Progress' :
-                            preorder.status === 'cancelled' ? 'Cancelled' :
-                            'Completed'}
-                          </span>
+                      <p className="text-[#f7eccf]/80 mb-4 line-clamp-2">{preorder.description}</p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-y-2 text-sm text-[#f7eccf]/60">
+                        <div className="flex items-center">
+                          <Users size={14} className="mr-2 text-[#f7eccf]/40" />
+                          <span>{preorder.target_department_name || 'No Department'}</span>
                         </div>
-                        
-                        {/* Action buttons for preorder */}
-                        <div className="flex flex-col space-y-2">
-                          {/* Status update buttons */}
-                          {(isAdmin || isManager || user?.employee_id === preorder.assigned_to) && preorder.status !== 'completed' && preorder.status !== 'cancelled' && (
+                        <div className="flex items-center">
+                          <span className="mr-2 w-3 h-3 rounded-full bg-[#f7eccf]/20 flex-shrink-0"></span>
+                          <span>{preorder.assigned_to_name || 'Unassigned'}</span>
+                        </div>
+                        <div className="flex items-center">
+                          <DollarSign size={14} className="mr-2 text-[#f7eccf]/40" />
+                          <span>{formatPrice(preorder.estimated_price)}</span>
+                        </div>
+                        <div className="flex items-center">
+                          <Truck size={14} className="mr-2 text-[#f7eccf]/40" />
+                          <span>Qty: {preorder.quantity || 'N/A'}</span>
+                        </div>
+                        <div className="flex items-center col-span-2 md:col-span-1">
+                          {preorder.pickup_date ? (
                             <>
-                              {preorder.status === 'pending' && (
+                              <Calendar size={14} className="mr-2 text-[#f7eccf]/40" />
+                              <span>{new Date(preorder.pickup_date).toLocaleDateString()}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Clock size={14} className="mr-2 text-[#f7eccf]/40" />
+                              <span>No pickup date</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {preorder.special_instructions && (
+                        <div className="mt-3 bg-[#f7eccf]/5 rounded-xl p-3 text-sm text-[#f7eccf]/70 flex items-start">
+                          <FileText size={14} className="mr-2 mt-0.5 text-[#f7eccf]/40 flex-shrink-0" />
+                          <span>{preorder.special_instructions}</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex flex-col mt-4 md:mt-0 md:ml-6 md:min-w-[180px] justify-between">
+                      <div className="mb-4">
+                        <span className={`inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-full ${
+                          preorder.status === 'pending' ? 'bg-amber-500/20 text-amber-500' :
+                          preorder.status === 'in_progress' ? 'bg-blue-500/20 text-blue-500' :
+                          preorder.status === 'cancelled' ? 'bg-red-500/20 text-red-500' :
+                          'bg-green-500/20 text-green-500'
+                        }`}>
+                          {preorder.status === 'pending' && <Clock size={12} className="mr-1" />}
+                          {preorder.status === 'in_progress' && <ArrowRight size={12} className="mr-1" />}
+                          {preorder.status === 'completed' && <CheckCircle size={12} className="mr-1" />}
+                          {preorder.status === 'cancelled' && <XCircle size={12} className="mr-1" />}
+                          {preorder.status === 'pending' ? 'Pending' :
+                          preorder.status === 'in_progress' ? 'In Progress' :
+                          preorder.status === 'cancelled' ? 'Cancelled' :
+                          'Completed'}
+                        </span>
+                      </div>
+                      
+                      {/* Action buttons for preorder */}
+                      <div className="space-y-2">
+                        {/* Status update buttons */}
+                        {(isAdmin || isManager || user?.employee_id === preorder.assigned_to) && preorder.status !== 'completed' && preorder.status !== 'cancelled' && (
+                          <>
+                            {preorder.status === 'pending' && (
+                              <motion.div
+                                variants={buttonVariants}
+                                whileHover="hover"
+                                whileTap="tap"
+                              >
                                 <Button
                                   onClick={() => updatePreOrderStatus(preorder.id, 'in_progress')}
-                                  className="bg-blue-500 text-white text-xs px-2 py-1"
+                                  className="w-full bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-2 rounded-xl flex items-center justify-center gap-1"
                                   size="sm"
                                   disabled={actionLoading.id === preorder.id && actionLoading.type === 'status'}
                                 >
                                   {actionLoading.id === preorder.id && actionLoading.type === 'status' ? (
-                                    <span className="inline-flex items-center">
-                                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                      </svg>
+                                    <>
+                                      <motion.div
+                                        className="w-3 h-3 border-2 border-white border-t-transparent rounded-full mr-1"
+                                        animate={{ rotate: 360 }}
+                                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                      />
                                       Processing...
-                                    </span>
+                                    </>
                                   ) : (
-                                    'Start'
+                                    <>
+                                      <ArrowRight size={14} />
+                                      Start
+                                    </>
                                   )}
                                 </Button>
-                              )}
-                              {preorder.status === 'in_progress' && (
+                              </motion.div>
+                            )}
+                            
+                            {preorder.status === 'in_progress' && (
+                              <motion.div
+                                variants={buttonVariants}
+                                whileHover="hover"
+                                whileTap="tap"
+                              >
                                 <Button
                                   onClick={() => updatePreOrderStatus(preorder.id, 'completed')}
-                                  className="bg-green-500 text-white text-xs px-2 py-1"
+                                  className="w-full bg-green-500 hover:bg-green-600 text-white text-xs px-2 py-2 rounded-xl flex items-center justify-center gap-1"
                                   size="sm"
                                   disabled={actionLoading.id === preorder.id && actionLoading.type === 'status'}
                                 >
                                   {actionLoading.id === preorder.id && actionLoading.type === 'status' ? (
-                                    <span className="inline-flex items-center">
-                                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                      </svg>
+                                    <>
+                                      <motion.div
+                                        className="w-3 h-3 border-2 border-white border-t-transparent rounded-full mr-1"
+                                        animate={{ rotate: 360 }}
+                                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                      />
                                       Processing...
-                                    </span>
+                                    </>
                                   ) : (
-                                    'Complete'
+                                    <>
+                                      <CheckCircle size={14} />
+                                      Complete
+                                    </>
                                   )}
                                 </Button>
-                              )}
-                              
-                              {/* Cancel button - available for pending and in_progress orders */}
+                              </motion.div>
+                            )}
+                            
+                            {/* Cancel button - available for pending and in_progress orders */}
+                            <motion.div
+                              variants={buttonVariants}
+                              whileHover="hover"
+                              whileTap="tap"
+                            >
                               <Button
                                 onClick={() => updatePreOrderStatus(preorder.id, 'cancelled')}
-                                className="bg-red-500 text-white text-xs px-2 py-1"
+                                className="w-full bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-2 rounded-xl flex items-center justify-center gap-1"
                                 size="sm"
                                 disabled={actionLoading.id === preorder.id && actionLoading.type === 'status'}
                               >
                                 {actionLoading.id === preorder.id && actionLoading.type === 'status' ? (
-                                  <span className="inline-flex items-center">
-                                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
+                                  <>
+                                    <motion.div
+                                      className="w-3 h-3 border-2 border-white border-t-transparent rounded-full mr-1"
+                                      animate={{ rotate: 360 }}
+                                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                    />
                                     Processing...
-                                  </span>
+                                  </>
                                 ) : (
-                                  'Cancel Order'
+                                  <>
+                                    <XCircle size={14} />
+                                    Cancel Order
+                                  </>
                                 )}
                               </Button>
-                              
-                              {/* Edit button */}
+                            </motion.div>
+                            
+                            {/* Edit button */}
+                            <motion.div
+                              variants={buttonVariants}
+                              whileHover="hover"
+                              whileTap="tap"
+                            >
                               <Button
                                 onClick={() => editPreOrder(preorder)}
-                                className="bg-accent text-white text-xs px-2 py-1"
+                                className="w-full bg-[#f7eccf] text-[#1C1C1C] hover:bg-[#e9d8ae] text-xs px-2 py-2 rounded-xl flex items-center justify-center gap-1"
                                 size="sm"
                               >
+                                <Edit size={14} />
                                 Edit
                               </Button>
-                            </>
-                          )}
-                          
-                          {/* Delete button - only for admin, manager, or old completed orders */}
-                          {((isAdmin || isManager) || isOverThirtyDays(preorder)) && (
+                            </motion.div>
+                          </>
+                        )}
+                        
+                        {/* Delete button - only for admin, manager, or old completed orders */}
+                        {((isAdmin || isManager) || isOverThirtyDays(preorder)) && (
+                          <motion.div
+                            variants={buttonVariants}
+                            whileHover="hover"
+                            whileTap="tap"
+                          >
                             <Button
                               onClick={() => deletePreOrder(preorder.id)}
-                              className="bg-red-600 text-white text-xs px-2 py-1"
+                              className="w-full bg-red-600 hover:bg-red-700 text-white text-xs px-2 py-2 rounded-xl flex items-center justify-center gap-1"
                               size="sm"
                               disabled={actionLoading.id === preorder.id && actionLoading.type === 'delete'}
                             >
                               {actionLoading.id === preorder.id && actionLoading.type === 'delete' ? (
-                                <span className="inline-flex items-center">
-                                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                  </svg>
+                                <>
+                                  <motion.div
+                                    className="w-3 h-3 border-2 border-white border-t-transparent rounded-full mr-1"
+                                    animate={{ rotate: 360 }}
+                                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                  />
                                   Deleting...
-                                </span>
+                                </>
                               ) : (
-                                'Delete'
+                                <>
+                                  <Trash2 size={14} />
+                                  Delete
+                                </>
                               )}
                             </Button>
-                          )}
-                            
-                          {/* Assignment dropdown (for managers/admins) */}
-                          {(isAdmin || isManager) && !preorder.assigned_to && preorder.target_department && preorder.status !== 'cancelled' && preorder.status !== 'completed' && (
+                          </motion.div>
+                        )}
+                          
+                        {/* Assignment dropdown (for managers/admins) */}
+                        {(isAdmin || isManager) && !preorder.assigned_to && preorder.target_department && preorder.status !== 'cancelled' && preorder.status !== 'completed' && (
+                          <div className="relative mt-2">
                             <select
                               onChange={(e) => {
                                 const selectedEmployeeId = parseInt(e.target.value);
@@ -1022,11 +1374,11 @@ export default function PreOrdersPage() {
                                   assignPreOrder(preorder.id, selectedEmployeeId);
                                 }
                               }}
-                              className="mt-2 p-1 text-xs border border-gray-300 rounded"
+                              className="w-full p-2 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent appearance-none transition-all text-xs"
                               defaultValue=""
                               disabled={actionLoading.id === preorder.id && actionLoading.type === 'assign'}
                             >
-                              <option value="" disabled>
+                              <option value="" disabled className="bg-[#1C1C1C]">
                                 {actionLoading.id === preorder.id && actionLoading.type === 'assign'
                                   ? 'Assigning...'
                                   : 'Assign to employee'}
@@ -1034,31 +1386,41 @@ export default function PreOrdersPage() {
                               {employees
                                 .filter(emp => emp.department_id === preorder.target_department)
                                 .map(emp => (
-                                  <option key={emp.id} value={emp.id}>
+                                  <option key={emp.id} value={emp.id} className="bg-[#1C1C1C]">
                                     {emp.first_name} {emp.last_name}
                                   </option>
                                 ))
                               }
                             </select>
-                          )}
-                        </div>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-[#f7eccf]/50">
+                              <ChevronDown size={14} />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </CardBody>
-                </Card>
-              ))}
-            </div>
-          )}
-
+                  </div>
+                </CardBody>
+              </Card>
+            </motion.div>
+          ))}
+          
           {/* Pagination Controls */}
-          {filteredPreOrders.length > 0 && (
-            <div className="mt-6 flex items-center justify-between">
-              <div className="text-sm text-gray-500">
-                Showing {pagination.currentPage * pagination.limit + 1} to{' '}
-                {Math.min((pagination.currentPage + 1) * pagination.limit, pagination.total)} of{' '}
-                {pagination.total} entries
-              </div>
-              <div className="flex space-x-2">
+          <motion.div 
+            variants={itemVariants}
+            className="mt-6 flex items-center justify-between"
+          >
+            <div className="text-sm text-[#f7eccf]/70">
+              Showing {pagination.currentPage * pagination.limit + 1} to{' '}
+              {Math.min((pagination.currentPage + 1) * pagination.limit, pagination.total)} of{' '}
+              {pagination.total} entries
+            </div>
+            <div className="flex space-x-2">
+              <motion.div
+                variants={buttonVariants}
+                whileHover="hover"
+                whileTap="tap"
+              >
                 <Button
                   onClick={() => {
                     setPagination(prev => ({
@@ -1067,11 +1429,17 @@ export default function PreOrdersPage() {
                     }));
                   }}
                   disabled={pagination.currentPage === 0}
-                  className="px-3 py-1 bg-gray-200 text-gray-800 disabled:bg-gray-100 disabled:text-gray-400"
+                  className="px-4 py-2 bg-[#f7eccf]/10 text-[#f7eccf] hover:bg-[#f7eccf]/20 disabled:opacity-50 disabled:hover:bg-[#f7eccf]/10 rounded-xl"
                   size="sm"
                 >
                   Previous
                 </Button>
+              </motion.div>
+              <motion.div
+                variants={buttonVariants}
+                whileHover="hover"
+                whileTap="tap"
+              >
                 <Button
                   onClick={() => {
                     setPagination(prev => ({
@@ -1080,43 +1448,79 @@ export default function PreOrdersPage() {
                     }));
                   }}
                   disabled={(pagination.currentPage + 1) * pagination.limit >= pagination.total}
-                  className="px-3 py-1 bg-gray-200 text-gray-800 disabled:bg-gray-100 disabled:text-gray-400"
+                  className="px-4 py-2 bg-[#f7eccf]/10 text-[#f7eccf] hover:bg-[#f7eccf]/20 disabled:opacity-50 disabled:hover:bg-[#f7eccf]/10 rounded-xl"
                   size="sm"
                 >
                   Next
                 </Button>
-              </div>
+              </motion.div>
             </div>
-          )}
-        </div>
-      </div>
+          </motion.div>
+        </motion.div>
+      )}
 
       {/* Confirmation Dialog */}
-      {isConfirmDialogOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg max-w-md w-full">
-            <h3 className="text-xl font-semibold mb-4">Confirm Action</h3>
-            <p className="mb-6">{confirmDialogText}</p>
-            <div className="flex justify-end space-x-3">
-              <Button 
-                onClick={() => {
-                  setIsConfirmDialogOpen(false);
-                  setConfirmAction(null);
-                }}
-                className="bg-gray-300 text-gray-800 hover:bg-gray-400"
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleConfirmAction}
-                className="bg-primary text-white"
-              >
-                Confirm
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      <AnimatePresence>
+        {isConfirmDialogOpen && (
+          <motion.div 
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <motion.div 
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setIsConfirmDialogOpen(false);
+                setConfirmAction(null);
+              }}
+            />
+            <motion.div 
+              className="bg-[#1C1C1C] rounded-3xl shadow-2xl p-8 max-w-md w-full z-10 relative border border-[#f7eccf]/10"
+              initial={{ scale: 0.9, y: 20, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.9, y: 20, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            >
+              <h3 className="text-xl font-semibold mb-4 text-[#f7eccf]">Confirm Action</h3>
+              <p className="mb-6 text-[#f7eccf]/80">{confirmDialogText}</p>
+              <div className="flex justify-end space-x-4">
+                <motion.div
+                  variants={buttonVariants}
+                  whileHover="hover"
+                  whileTap="tap"
+                >
+                  <Button 
+                    onClick={() => {
+                      setIsConfirmDialogOpen(false);
+                      setConfirmAction(null);
+                    }}
+                    className="bg-[#333333] text-[#f7eccf] hover:bg-[#444444] rounded-full px-5 py-2"
+                  >
+                    Cancel
+                  </Button>
+                </motion.div>
+                <motion.div
+                  variants={buttonVariants}
+                  whileHover="hover"
+                  whileTap="tap"
+                >
+                  <Button 
+                    onClick={handleConfirmAction}
+                    className="bg-[#f7eccf] text-[#1C1C1C] hover:bg-[#e9d8ae] rounded-full px-5 py-2"
+                  >
+                    Confirm
+                  </Button>
+                </motion.div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   )
 }
