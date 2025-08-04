@@ -4,11 +4,17 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardBody } from '@/components/ui/Card'
-import Button from '@/components/ui/Button'
+import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/services/api'
-import SearchBar from '@/components/ui/SearchBar'
-import { AlertCircle, Trash2, AlertTriangle } from 'lucide-react'
+import { SearchBar } from '@/components/ui/SearchBar'
+import { 
+  AlertCircle, Trash2, AlertTriangle, MessageSquare, 
+  Filter, ChevronDown, Users, Clock, Calendar, 
+  CheckCircle, XCircle, Plus, RefreshCw, ChevronRight,
+  Lock, Unlock, UserCheck
+} from 'lucide-react'
+import { motion, AnimatePresence, Variants, Transition } from 'framer-motion'
 
 interface Complaint {
   id: number
@@ -44,6 +50,64 @@ interface Department {
   name: string
 }
 
+// Animation variants
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.08,
+      delayChildren: 0.1
+    }
+  }
+}
+
+const itemVariants: Variants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: { duration: 0.5, ease: [0.25, 0.1, 0.25, 1.0] }
+  }
+}
+
+const cardVariants: Variants = {
+  hidden: { y: 15, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: { duration: 0.5, ease: [0.25, 0.1, 0.25, 1.0] }
+  },
+  hover: {
+    y: -8,
+    boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1)",
+    transition: { duration: 0.3 }
+  }
+}
+
+const modalVariants: Variants = {
+  hidden: { 
+    opacity: 0,
+    scale: 0.8
+  },
+  visible: { 
+    opacity: 1,
+    scale: 1,
+    transition: { 
+      duration: 0.3,
+      ease: [0.16, 1, 0.3, 1]
+    }
+  },
+  exit: { 
+    opacity: 0,
+    scale: 0.8,
+    transition: { 
+      duration: 0.2,
+      ease: [0.16, 1, 0.3, 1]
+    }
+  }
+}
+
 export default function ComplaintsPage() {
   const { user, isAdmin, isManager } = useAuth()
   const router = useRouter()
@@ -59,6 +123,8 @@ export default function ComplaintsPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [resolution, setResolution] = useState<string>('')
   const [showResolutionForm, setShowResolutionForm] = useState<number | null>(null)
+  const [sortBy, setSortBy] = useState('created_at')
+  const [showAssignDropdown, setShowAssignDropdown] = useState<number | null>(null)
   
   const [formData, setFormData] = useState({
     customer_name: '',
@@ -284,6 +350,7 @@ export default function ComplaintsPage() {
       
       // Refresh complaints to get updated assignment info
       refreshComplaints()
+      setShowAssignDropdown(null)
     } catch (err: any) {
       console.error('Error assigning complaint:', err)
       setError(err.response?.data?.detail || 'Failed to assign complaint')
@@ -319,477 +386,781 @@ export default function ComplaintsPage() {
     ).join(' ');
   }
 
+  // Get status style
+  const getStatusStyle = (status: string) => {
+    switch(status) {
+      case 'open':
+        return 'bg-red-500/20 text-red-500';
+      case 'in_progress':
+        return 'bg-blue-500/20 text-blue-500';
+      case 'resolved':
+        return 'bg-green-500/20 text-green-500';
+      default:
+        return 'bg-gray-500/20 text-gray-500';
+    }
+  };
+
+  // Get severity style
+  const getSeverityStyle = (severity: string) => {
+    switch(severity) {
+      case 'high':
+        return 'bg-red-500/20 text-red-500';
+      case 'medium':
+        return 'bg-amber-500/20 text-amber-500';
+      case 'low':
+        return 'bg-green-500/20 text-green-500';
+      default:
+        return 'bg-gray-500/20 text-gray-500';
+    }
+  };
+
+  // Sort complaints
+  const sortedComplaints = [...filteredComplaints].sort((a, b) => {
+    switch(sortBy) {
+      case 'customer_name':
+        return a.customer_name.localeCompare(b.customer_name);
+      case 'severity':
+        // Sort high > medium > low
+        const severityOrder = { high: 3, medium: 2, low: 1 };
+        return (severityOrder[b.severity as keyof typeof severityOrder] || 0) - 
+               (severityOrder[a.severity as keyof typeof severityOrder] || 0);
+      case 'created_at':
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      default:
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }
+  });
+
+  // Animation variants for the tab indicator
+  const tabTransition:Transition = {
+    type: "spring",
+    stiffness: 400,
+    damping: 30
+  };
+
+  // Toggle component for private/public status
+  const PrivacyToggle = ({ isPrivate, onChange, disabled = false }: { isPrivate: boolean, onChange: () => void, disabled?: boolean }) => {
+    return (
+      <motion.div 
+        className={`relative w-24 h-7 rounded-full cursor-pointer flex items-center p-1 ${
+          disabled ? 'opacity-70 cursor-not-allowed' : ''
+        } ${
+          isPrivate ? 'bg-[#f7eccf]/40' : 'bg-[#f7eccf]/10'
+        }`}
+        onClick={disabled ? undefined : onChange}
+        whileHover={disabled ? {} : { scale: 1.05 }}
+        whileTap={disabled ? {} : { scale: 0.98 }}
+      >
+        <motion.div 
+          className={`absolute w-5 h-5 rounded-full flex items-center justify-center transition-all duration-400 ${
+            isPrivate ? 'bg-[#f7eccf] right-4' : 'bg-[#1C1C1C] border border-[#f7eccf]/20 left-1'
+          }`}
+          layout
+          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+        >
+          {isPrivate ? (
+            <Lock size={10} className="text-[#1C1C1C]" />
+          ) : (
+            <Unlock size={10} className="text-[#f7eccf]" />
+          )}
+        </motion.div>
+        <span className={`text-xs ${isPrivate ? 'pl-1 text-[#f7eccf]' : 'pl-7 text-[#f7eccf]/70'}`}>
+          {isPrivate ? 'Private' : 'Public'}
+        </span>
+      </motion.div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        <motion.div 
+          className="rounded-full h-16 w-16 border-t-4 border-b-4 border-[#f7eccf]"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1.5, ease: "linear", repeat: Infinity }}
+        />
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-semibold text-primary">Customer Complaints</h1>
-        <Button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-primary text-white"
-        >
-          {showForm ? 'Cancel' : 'Report New Complaint'}
-        </Button>
-      </div>
-
-      {error && (
-        <div className="bg-red-100 text-red-800 p-4 rounded-lg flex items-center">
-          <AlertCircle className="h-5 w-5 mr-2" />
-          {error}
-        </div>
-      )}
-
-      {showForm && (
-        <Card>
-          <CardBody>
-            <h2 className="text-xl font-semibold mb-4">Report New Complaint</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Customer Name*
-                </label>
-                <input
-                  type="text"
-                  name="customer_name"
-                  value={formData.customer_name}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Customer Email
-                </label>
-                <input
-                  type="email"
-                  name="customer_email"
-                  value={formData.customer_email || ''}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Customer Phone
-                </label>
-                <input
-                  type="tel"
-                  name="customer_phone"
-                  value={formData.customer_phone || ''}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Complaint Type*
-                </label>
-                <select
-                  name="complaint_type"
-                  value={formData.complaint_type}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                  required
-                >
-                  <option value="product_quality">Product Quality</option>
-                  <option value="customer_service">Customer Service</option>
-                  <option value="store_experience">Store Experience</option>
-                  <option value="price_discrepancy">Price Discrepancy</option>
-                  <option value="product_availability">Product Availability</option>
-                  <option value="returns_refunds">Returns/Refunds</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Department Involved*
-                </label>
-                <select
-                  name="department_involved"
-                  value={formData.department_involved || ''}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                  required
-                >
-                  <option value="">Select Department</option>
-                  {departments.map(dept => (
-                    <option key={dept.id} value={dept.id}>
-                      {dept.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Severity
-                </label>
-                <select
-                  name="severity"
-                  value={formData.severity}
-                  onChange={handleInputChange}
-                  className="w-full p-2 border rounded-md"
-                >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                </select>
-              </div>
-
-              {(isAdmin || isManager) && (
-                <div className="flex items-center mt-6">
-                  <input
-                    type="checkbox"
-                    id="is_private"
-                    name="is_private"
-                    checked={formData.is_private || formData.severity === 'high'}
-                    onChange={handleInputChange}
-                    disabled={formData.severity === 'high'} // Auto-checked for high severity
-                    className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-                  />
-                  <label htmlFor="is_private" className="ml-2 block text-sm text-primary">
-                    Mark as Private (Only visible to managers and admins)
-                    {formData.severity === 'high' && <span className="text-red-500 ml-1">(Required for high severity)</span>}
-                  </label>
+    <motion.div 
+      className="space-y-6"
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
+      {/* Header Card */}
+      <motion.div variants={itemVariants}>
+        <Card elevation="floating" className="border-none bg-[#1C1C1C] overflow-hidden rounded-3xl shadow-xl">
+          <CardBody className="p-6 md:p-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="flex items-center">
+                <div className="p-3 bg-[#f7eccf]/10 rounded-2xl mr-4">
+                  <MessageSquare className="h-6 w-6 text-[#f7eccf]" />
                 </div>
-              )}
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-primary mb-1">
-                  Description*
-                </label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  rows={4}
-                  className="w-full p-2 border rounded-md"
-                  required
-                ></textarea>
+                <div>
+                  <h1 className="text-2xl font-bold text-[#f7eccf]">Customer Complaints</h1>
+                  <p className="text-[#f7eccf]/70 text-sm mt-1">
+                    Track and manage customer feedback and issues
+                  </p>
+                </div>
               </div>
-
-              <div className="md:col-span-2 flex space-x-2">
-                <Button
-                  onClick={handleCreateComplaint}
-                  className="bg-primary text-white"
-                >
-                  Submit Complaint
-                </Button>
-                <Button
-                  onClick={() => setShowForm(false)}
-                  className="bg-gray-200 text-gray-800"
-                >
-                  Cancel
-                </Button>
-              </div>
+              
+              <motion.button
+                onClick={() => setShowForm(!showForm)}
+                className="px-4 py-2.5 bg-[#f7eccf] text-[#1C1C1C] rounded-full flex items-center gap-2 font-medium shadow-md"
+                whileHover={{ scale: 1.05, y: -2 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                {showForm ? (
+                  <>
+                    <XCircle size={18} />
+                    <span>Cancel</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus size={18} />
+                    <span>Report New Complaint</span>
+                  </>
+                )}
+              </motion.button>
             </div>
           </CardBody>
         </Card>
-      )}
+      </motion.div>
 
-      <div className="bg-white shadow-sm rounded-lg overflow-hidden">
-        <div className="border-b border-gray-200">
-          <nav className="flex -mb-px">
-            <button
-              onClick={() => setActiveTab('open')}
-              className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                activeTab === 'open'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-primary-light hover:text-primary hover:border-primary-light'
-              }`}
-            >
-              Open
-            </button>
-            <button
-              onClick={() => setActiveTab('in_progress')}
-              className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                activeTab === 'in_progress'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-primary-light hover:text-primary hover:border-primary-light'
-              }`}
-            >
-              In Progress
-            </button>
-            <button
-              onClick={() => setActiveTab('resolved')}
-              className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                activeTab === 'resolved'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-primary-light hover:text-primary hover:border-primary-light'
-              }`}
-            >
-              Resolved
-            </button>
-            <button
-              onClick={() => setActiveTab('all')}
-              className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
-                activeTab === 'all'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-primary-light hover:text-primary hover:border-primary-light'
-              }`}
-            >
-              All
-            </button>
-          </nav>
-        </div>
+      {/* Error Alert */}
+      <AnimatePresence>
+        {error && (
+          <motion.div 
+            className="bg-red-500/10 text-red-500 p-4 rounded-2xl flex items-center"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+            <p>{error}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-        <div className="p-4">
-          <SearchBar
-            placeholder="Search complaints..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="mb-4"
-          />
+      {/* Complaint Form */}
+      <AnimatePresence>
+        {showForm && (
+          <motion.div
+            variants={itemVariants}
+            initial="hidden"
+            animate="visible"
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <Card elevation="floating" className="border-none bg-[#1C1C1C] overflow-hidden rounded-3xl shadow-xl">
+              <CardBody className="p-6">
+                <h2 className="text-xl font-bold text-[#f7eccf] mb-6 flex items-center">
+                  <Plus size={20} className="mr-2 text-[#f7eccf]/70" />
+                  Report New Complaint
+                </h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/70 mb-2">
+                      Customer Name*
+                    </label>
+                    <input
+                      type="text"
+                      name="customer_name"
+                      value={formData.customer_name}
+                      onChange={handleInputChange}
+                      className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent"
+                      required
+                    />
+                  </div>
 
-          {filteredComplaints.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              No complaints found.
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/70 mb-2">
+                      Customer Email
+                    </label>
+                    <input
+                      type="email"
+                      name="customer_email"
+                      value={formData.customer_email || ''}
+                      onChange={handleInputChange}
+                      className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/70 mb-2">
+                      Customer Phone
+                    </label>
+                    <input
+                      type="tel"
+                      name="customer_phone"
+                      value={formData.customer_phone || ''}
+                      onChange={handleInputChange}
+                      className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/70 mb-2">
+                      Complaint Type*
+                    </label>
+                    <div className="relative">
+                      <select
+                        name="complaint_type"
+                        value={formData.complaint_type}
+                        onChange={handleInputChange}
+                        className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent appearance-none"
+                        required
+                      >
+                        <option value="product_quality" className="bg-[#1C1C1C]">Product Quality</option>
+                        <option value="customer_service" className="bg-[#1C1C1C]">Customer Service</option>
+                        <option value="store_experience" className="bg-[#1C1C1C]">Store Experience</option>
+                        <option value="price_discrepancy" className="bg-[#1C1C1C]">Price Discrepancy</option>
+                        <option value="product_availability" className="bg-[#1C1C1C]">Product Availability</option>
+                        <option value="returns_refunds" className="bg-[#1C1C1C]">Returns/Refunds</option>
+                        <option value="other" className="bg-[#1C1C1C]">Other</option>
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#f7eccf]/50">
+                        <ChevronDown size={14} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/70 mb-2">
+                      Department Involved*
+                    </label>
+                    <div className="relative">
+                      <select
+                        name="department_involved"
+                        value={formData.department_involved || ''}
+                        onChange={handleInputChange}
+                        className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent appearance-none"
+                        required
+                      >
+                        <option value="" className="bg-[#1C1C1C]">Select Department</option>
+                        {departments.map(dept => (
+                          <option key={dept.id} value={dept.id} className="bg-[#1C1C1C]">
+                            {dept.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#f7eccf]/50">
+                        <ChevronDown size={14} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#f7eccf]/70 mb-2">
+                      Severity
+                    </label>
+                    <div className="relative">
+                      <select
+                        name="severity"
+                        value={formData.severity}
+                        onChange={handleInputChange}
+                        className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent appearance-none"
+                      >
+                        <option value="low" className="bg-[#1C1C1C]">Low</option>
+                        <option value="medium" className="bg-[#1C1C1C]">Medium</option>
+                        <option value="high" className="bg-[#1C1C1C]">High</option>
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#f7eccf]/50">
+                        <ChevronDown size={14} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {(isAdmin || isManager) && (
+                    <div className="flex items-center mt-6">
+                      <div className="relative flex items-center">
+                        <PrivacyToggle 
+                          isPrivate={formData.is_private || formData.severity === 'high'}
+                          onChange={() => {
+                            if (formData.severity !== 'high') {
+                              setFormData(prev => ({
+                                ...prev,
+                                is_private: !prev.is_private
+                              }))
+                            }
+                          }}
+                          disabled={formData.severity === 'high'} 
+                        />
+                        {formData.severity === 'high' && (
+                          <span className="text-red-500 ml-3 text-sm">(Required for high severity)</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-[#f7eccf]/70 mb-2">
+                      Description*
+                    </label>
+                    <textarea
+                      name="description"
+                      value={formData.description}
+                      onChange={handleInputChange}
+                      rows={4}
+                      className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent"
+                      required
+                    ></textarea>
+                  </div>
+
+                  <div className="md:col-span-2 flex space-x-3 pt-4">
+                    <motion.button
+                      onClick={handleCreateComplaint}
+                      className="px-6 py-3 bg-[#f7eccf] text-[#1C1C1C] rounded-xl font-medium shadow-md flex items-center gap-2"
+                      whileHover={{ scale: 1.05, y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <CheckCircle size={18} />
+                      Submit Complaint
+                    </motion.button>
+                    <motion.button
+                      onClick={() => setShowForm(false)}
+                      className="px-6 py-3 bg-[#1C1C1C] border border-[#f7eccf]/30 text-[#f7eccf] rounded-xl font-medium shadow-md flex items-center gap-2"
+                      whileHover={{ scale: 1.05, y: -2, backgroundColor: 'rgba(247, 236, 207, 0.1)' }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <XCircle size={18} />
+                      Cancel
+                    </motion.button>
+                  </div>
+                </div>
+              </CardBody>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Search and filter bar */}
+      <motion.div variants={itemVariants}>
+        <Card elevation="floating" className="border-none bg-[#1C1C1C] overflow-hidden rounded-3xl shadow-xl">
+          <CardBody className="p-6">
+            <div className="flex flex-col md:flex-row justify-between gap-4">
+              {/* Tabs */}
+              <div className="flex-col flex md:flex-row  bg-[#f7eccf]/10 p-1 rounded-xl">
+                {['open', 'in_progress', 'resolved', 'all'].map((tab) => (
+                  <motion.button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all relative ${
+                      activeTab === tab 
+                        ? 'bg-[#f7eccf] text-[#1C1C1C]' 
+                        : 'text-[#f7eccf]/70 hover:text-[#f7eccf]'
+                    }`}
+                    whileHover={{ y: -2 }}
+                    whileTap={{ y: 0 }}
+                  >
+                    {activeTab === tab && (
+                      <motion.div
+                        className="absolute inset-0 bg-[#f7eccf] rounded-lg"
+                        layoutId="tabBackground"
+                        transition={tabTransition}
+                        style={{ zIndex: -1 }}
+                      />
+                    )}
+                    {tab === 'all' ? 'All' : 
+                     tab === 'open' ? 'Open' : 
+                     tab === 'in_progress' ? 'In Progress' : 'Resolved'}
+                  </motion.button>
+                ))}
+              </div>
+              
+              {/* Search bar */}
+              <div className="w-full md:w-1/3">
+                <SearchBar
+                  placeholder="Search complaints..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="bg-[#f7eccf]/5 border-[#f7eccf]/20 text-[#f7eccf] placeholder:text-[#f7eccf]/50 focus:border-[#f7eccf]/50"
+                  containerClassName="w-full"
+                />
+              </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {filteredComplaints.map(complaint => (
-                <Card 
-                  key={complaint.id} 
-                  className={`${complaint.severity === 'high' ? 'border-l-4 border-red-500' : 
-                               complaint.severity === 'medium' ? 'border-l-4 border-yellow-500' : 
-                               'border-l-4 border-green-500'}`}
+            
+            {/* Sort options */}
+            <div className="flex items-center pt-4 border-t border-[#f7eccf]/10 mt-4">
+              <div className="flex items-center gap-2 text-[#f7eccf]/70 mr-3">
+                <Filter size={16} />
+                <span className="text-sm">Sort by:</span>
+              </div>
+              <div className="w-48 relative">
+                <select 
+                  value={sortBy} 
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full p-2 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent appearance-none transition-all text-sm"
                 >
-                  <CardBody>
+                  <option value="created_at" className="bg-[#1C1C1C]">Date (Newest first)</option>
+                  <option value="customer_name" className="bg-[#1C1C1C]">Customer Name</option>
+                  <option value="severity" className="bg-[#1C1C1C]">Severity</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#f7eccf]/50">
+                  <ChevronDown size={14} />
+                </div>
+              </div>
+              <motion.button
+                className="ml-3 p-2 bg-[#f7eccf]/10 rounded-full text-[#f7eccf] hover:bg-[#f7eccf]/20 transition-all"
+                onClick={() => refreshComplaints()}
+                whileHover={{ rotate: 180 }}
+                transition={{ duration: 0.5 }}
+              >
+                <RefreshCw size={16} />
+              </motion.button>
+            </div>
+          </CardBody>
+        </Card>
+      </motion.div>
+
+      {/* Complaints List */}
+      <motion.div variants={containerVariants}>
+        {sortedComplaints.length === 0 ? (
+          <motion.div 
+            variants={itemVariants}
+            className="bg-[#1C1C1C] p-8 rounded-3xl shadow-xl"
+          >
+            <div className="flex flex-col items-center justify-center py-16">
+              <div className="w-16 h-16 bg-[#f7eccf]/10 rounded-full flex items-center justify-center mb-4">
+                <CheckCircle className="h-8 w-8 text-green-500" />
+              </div>
+              <h3 className="text-xl font-semibold text-[#f7eccf] mb-2">No complaints found</h3>
+              <p className="text-[#f7eccf]/70 max-w-md text-center">
+                {activeTab === 'all' 
+                  ? "There are no complaints in the system matching your search." 
+                  : activeTab === 'open'
+                  ? "There are no open complaints at this time."
+                  : activeTab === 'in_progress'
+                  ? "There are no complaints in progress at this time."
+                  : "There are no resolved complaints at this time."
+                }
+              </p>
+            </div>
+          </motion.div>
+        ) : (
+          <div className="space-y-4">
+            {sortedComplaints.map((complaint, index) => (
+              <motion.div 
+                key={complaint.id}
+                variants={cardVariants}
+                whileHover="hover"
+                custom={index}
+                className="relative"
+              >
+                <Card elevation="floating" className={`border-none bg-[#1C1C1C] overflow-hidden rounded-3xl shadow-xl ${
+                  complaint.severity === 'high' ? 'border-l-4 border-red-500' : 
+                  complaint.severity === 'medium' ? 'border-l-4 border-yellow-500' : 
+                  'border-l-4 border-green-500'
+                }`}>
+                  <CardBody className="p-6">
                     {/* Resolution form */}
-                    {showResolutionForm === complaint.id && (
-                      <div className="bg-gray-50 p-4 mb-4 rounded-md">
-                        <h4 className="font-medium mb-2">Add Resolution</h4>
-                        <textarea
-                          value={resolution}
-                          onChange={(e) => setResolution(e.target.value)}
-                          className="w-full p-2 border rounded-md mb-2"
-                          placeholder="Enter resolution details..."
-                          rows={3}
-                        ></textarea>
-                        <div className="flex space-x-2">
-                          <Button
-                            onClick={() => handleResolveWithComment(complaint.id)}
-                            className="bg-green-500 text-white"
-                            size="sm"
-                          >
-                            Resolve
-                          </Button>
-                          <Button
-                            onClick={() => setShowResolutionForm(null)}
-                            className="bg-gray-300 text-gray-700"
-                            size="sm"
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Delete confirmation */}
-                    {deleteConfirmId === complaint.id && (
-                      <div className="bg-red-50 p-4 mb-4 rounded-md">
-                        <div className="flex items-center mb-2">
-                          <AlertTriangle className="text-red-500 mr-2" size={20} />
-                          <h4 className="font-medium text-red-800">Confirm Deletion</h4>
-                        </div>
-                        <p className="text-sm text-red-700 mb-3">
-                          Are you sure you want to delete this complaint? This action cannot be undone.
-                        </p>
-                        <div className="flex space-x-2">
-                          <Button
-                            onClick={() => deleteComplaint(complaint.id)}
-                            className="bg-red-500 text-white"
-                            size="sm"
-                          >
-                            Delete
-                          </Button>
-                          <Button
-                            onClick={() => setDeleteConfirmId(null)}
-                            className="bg-gray-300 text-gray-700"
-                            size="sm"
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    )}
+                    <AnimatePresence>
+                      {showResolutionForm === complaint.id && (
+                        <motion.div 
+                          className="bg-[#f7eccf]/5 p-6 mb-6 rounded-2xl"
+                          initial={{ opacity: 0, y: -20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -20 }}
+                        >
+                          <h4 className="font-semibold text-[#f7eccf] mb-3 flex items-center">
+                            <CheckCircle size={18} className="mr-2 text-green-500" />
+                            Add Resolution
+                          </h4>
+                          <textarea
+                            value={resolution}
+                            onChange={(e) => setResolution(e.target.value)}
+                            className="w-full p-3 bg-[#f7eccf]/10 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent mb-4"
+                            placeholder="Enter resolution details..."
+                            rows={3}
+                          ></textarea>
+                          <div className="flex space-x-3">
+                            <motion.button
+                              onClick={() => handleResolveWithComment(complaint.id)}
+                              className="px-4 py-2 bg-green-500 text-white rounded-xl font-medium shadow-md flex items-center gap-2"
+                              whileHover={{ scale: 1.05, y: -2 }}
+                              whileTap={{ scale: 0.98 }}
+                            >
+                              <CheckCircle size={16} />
+                              Resolve
+                            </motion.button>
+                            <motion.button
+                              onClick={() => setShowResolutionForm(null)}
+                              className="px-4 py-2 bg-[#1C1C1C] border border-[#f7eccf]/30 text-[#f7eccf] rounded-xl font-medium shadow-md flex items-center gap-2"
+                              whileHover={{ scale: 1.05, y: -2, backgroundColor: 'rgba(247, 236, 207, 0.1)' }}
+                              whileTap={{ scale: 0.98 }}
+                            >
+                              <XCircle size={16} />
+                              Cancel
+                            </motion.button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                     
                     <div className="flex flex-col md:flex-row justify-between">
                       <div className="flex-1">
-                        <div className="flex items-center mb-2">
-                          <h3 className="text-lg font-medium text-primary">
+                        <div className="flex flex-wrap items-center gap-3 mb-4">
+                          <h3 className="text-lg font-semibold text-[#f7eccf]">
                             {complaint.customer_name}
                           </h3>
-                          {complaint.is_private && (
-                            <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-800">
-                              PRIVATE
+                          <div className="flex flex-wrap gap-2">
+                            {complaint.is_private && (
+                              <span className="px-3 py-1 text-xs font-medium rounded-full bg-[#f7eccf]/10 text-[#f7eccf] flex items-center gap-1">
+                                <Lock size={12} />
+                                PRIVATE
+                              </span>
+                            )}
+                            <span className={`px-3 py-1 text-xs font-medium rounded-full ${getSeverityStyle(complaint.severity)}`}>
+                              {complaint.severity.toUpperCase()}
                             </span>
-                          )}
-                          <span className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full ${
-                            complaint.severity === 'high' ? 'bg-red-500 text-white' :
-                            complaint.severity === 'medium' ? 'bg-yellow-500 text-white' :
-                            'bg-green-500 text-white'
-                          }`}>
-                            {complaint.severity.toUpperCase()}
-                          </span>
-                          <span className={`ml-2 px-3 py-1 text-xs font-semibold rounded-full ${
-                            complaint.status === 'open' ? 'bg-red-100 text-red-800' :
-                            complaint.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                            'bg-green-100 text-green-800'
-                          }`}>
-                            {complaint.status === 'open' ? 'OPEN' :
-                            complaint.status === 'in_progress' ? 'IN PROGRESS' :
-                            'RESOLVED'}
-                          </span>
+                            <span className={`px-3 py-1 text-xs font-medium rounded-full ${getStatusStyle(complaint.status)}`}>
+                              {complaint.status === 'in_progress' ? 'IN PROGRESS' : complaint.status.toUpperCase()}
+                            </span>
+                          </div>
                         </div>
                         
-                        <p className="text-sm text-gray-600 mb-2">{complaint.description}</p>
+                        <div className="p-4 rounded-2xl bg-[#f7eccf]/5 mb-4">
+                          <p className="text-sm text-[#f7eccf]/90">{complaint.description}</p>
+                        </div>
                         
-                        <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-2">
-                          <div>
-                            <span className="font-semibold">Type:</span> {formatComplaintType(complaint.complaint_type)}
-                          </div>
-                          <div>
-                            <span className="font-semibold">Department:</span> {complaint.department_involved_name || 'Not specified'}
-                          </div>
-                          <div>
-                            <span className="font-semibold">Reported by:</span> {complaint.reported_by_name || `Employee ID: ${complaint.reported_by}`}
-                          </div>
-                          <div>
-                            <span className="font-semibold">Assigned to:</span> {complaint.assigned_to_name || 'Unassigned'}
-                          </div>
-                          <div>
-                            <span className="font-semibold">Created:</span> {new Date(complaint.created_at).toLocaleDateString()}
-                          </div>
-                          {complaint.resolved_at && (
-                            <div>
-                              <span className="font-semibold">Resolved:</span> {new Date(complaint.resolved_at).toLocaleDateString()}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                          <div className="flex items-center gap-2 text-sm text-[#f7eccf]/70">
+                            <div className="h-8 w-8 rounded-full bg-[#f7eccf]/10 flex items-center justify-center">
+                              <MessageSquare size={14} className="text-[#f7eccf]/70" />
                             </div>
-                          )}
+                            <span>{formatComplaintType(complaint.complaint_type)}</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 text-sm text-[#f7eccf]/70">
+                            <div className="h-8 w-8 rounded-full bg-[#f7eccf]/10 flex items-center justify-center">
+                              <Users size={14} className="text-[#f7eccf]/70" />
+                            </div>
+                            <span>{complaint.department_involved_name || 'Department not specified'}</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 text-sm text-[#f7eccf]/70">
+                            <div className="h-8 w-8 rounded-full bg-[#f7eccf]/10 flex items-center justify-center">
+                              <Calendar size={14} className="text-[#f7eccf]/70" />
+                            </div>
+                            <span>{new Date(complaint.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="flex items-center gap-2 text-sm text-[#f7eccf]/70">
+                            <span className="font-medium">Reported by:</span>
+                            <span>{complaint.reported_by_name || `Employee ID: ${complaint.reported_by}`}</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 text-sm text-[#f7eccf]/70">
+                            <span className="font-medium">Assigned to:</span>
+                            <span>{complaint.assigned_to_name || 'Unassigned'}</span>
+                          </div>
                         </div>
                         
                         {complaint.resolution && (
-                          <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded mb-2">
-                            <span className="font-semibold">Resolution:</span> {complaint.resolution}
+                          <div className="mt-4 p-4 bg-green-500/10 rounded-2xl">
+                            <div className="flex items-center mb-2">
+                              <CheckCircle size={16} className="text-green-500 mr-2" />
+                              <span className="text-sm font-medium text-green-500">Resolution</span>
+                            </div>
+                            <p className="text-sm text-[#f7eccf]/90">{complaint.resolution}</p>
                           </div>
                         )}
                         
                         {complaint.customer_email && (
-                          <div className="text-xs text-gray-500 mb-1">
-                            <span className="font-semibold">Email:</span> {complaint.customer_email}
+                          <div className="mt-4 text-sm text-[#f7eccf]/70">
+                            <span className="font-medium">Email:</span> {complaint.customer_email}
                           </div>
                         )}
                         
                         {complaint.customer_phone && (
-                          <div className="text-xs text-gray-500 mb-1">
-                            <span className="font-semibold">Phone:</span> {complaint.customer_phone}
+                          <div className="mt-1 text-sm text-[#f7eccf]/70">
+                            <span className="font-medium">Phone:</span> {complaint.customer_phone}
                           </div>
                         )}
                       </div>
                       
-                      <div className="flex flex-col justify-between mt-4 md:mt-0 md:ml-4 min-w-[130px]">
+                      <div className="flex flex-row flex-wrap md:flex-col justify-start items-start gap-3 mt-6 md:mt-0 md:ml-6">
                         {/* Status update buttons */}
                         {complaint.status !== 'resolved' && (
-                          <div className="flex flex-col space-y-2">
+                          <>
                             {complaint.status === 'open' && (
-                              <Button
+                              <motion.button
                                 onClick={() => updateComplaintStatus(complaint.id, 'in_progress')}
-                                className="bg-blue-500 text-white text-xs px-2 py-1"
-                                size="sm"
+                                className="px-4 py-2 bg-blue-500 text-white rounded-xl shadow-md flex items-center gap-2"
+                                whileHover={{ scale: 1.05, y: -2 }}
+                                whileTap={{ scale: 0.98 }}
                               >
+                                <Clock size={16} />
                                 Start
-                              </Button>
+                              </motion.button>
                             )}
                             
                             {complaint.status === 'in_progress' && (
-                              <Button
+                              <motion.button
                                 onClick={() => updateComplaintStatus(complaint.id, 'resolved')}
-                                className="bg-green-500 text-white text-xs px-2 py-1"
-                                size="sm"
+                                className="px-4 py-2 bg-green-500 text-white rounded-xl shadow-md flex items-center gap-2"
+                                whileHover={{ scale: 1.05, y: -2 }}
+                                whileTap={{ scale: 0.98 }}
                               >
+                                <CheckCircle size={16} />
                                 Resolve
-                              </Button>
+                              </motion.button>
                             )}
+                          </>
+                        )}
+                        
+                        {/* Assignment dropdown (for managers/admins) */}
+                        {(isAdmin || isManager) && !complaint.assigned_to && complaint.department_involved && (
+                          <div className="relative">
+                            <motion.button
+                              onClick={() => setShowAssignDropdown(showAssignDropdown === complaint.id ? null : complaint.id)}
+                              className="px-4 py-2 bg-[#f7eccf]/10 text-[#f7eccf] rounded-xl shadow-md flex items-center gap-2 min-w-[140px]"
+                              whileHover={{ scale: 1.05, y: -2, backgroundColor: 'rgba(247, 236, 207, 0.15)' }}
+                              whileTap={{ scale: 0.98 }}
+                            >
+                              <UserCheck size={16} />
+                              Assign
+                              <ChevronDown size={14} className={`ml-auto transition-transform ${showAssignDropdown === complaint.id ? 'rotate-180' : ''}`} />
+                            </motion.button>
                             
-                            {/* Assignment dropdown (for managers/admins) */}
-                            {(isAdmin || isManager) && !complaint.assigned_to && complaint.department_involved && (
-                              <select
-                                onChange={(e) => {
-                                  const selectedEmployeeId = parseInt(e.target.value);
-                                  if (selectedEmployeeId) {
-                                    assignComplaint(complaint.id, selectedEmployeeId);
-                                  }
-                                }}
-                                className="mt-2 p-1 text-xs border border-gray-300 rounded"
-                                defaultValue=""
-                              >
-                                <option value="" disabled>Assign to employee</option>
-                                {employees
-                                  .filter(emp => emp.department_id === complaint.department_involved)
-                                  .map(emp => (
-                                    <option key={emp.id} value={emp.id}>
-                                      {emp.first_name} {emp.last_name}
-                                    </option>
-                                  ))
-                                }
-                              </select>
-                            )}
-                            
-                            {/* Privacy toggle (for managers/admins) */}
-                            {(isAdmin || isManager) && complaint.severity !== 'high' && (
-                              <Button
-                                onClick={() => togglePrivacy(complaint.id, !complaint.is_private)}
-                                className={`${complaint.is_private ? 'bg-gray-300' : 'bg-gray-500'} text-white text-xs px-2 py-1 mt-2`}
-                                size="sm"
-                              >
-                                {complaint.is_private ? 'Make Public' : 'Make Private'}
-                              </Button>
-                            )}
-                            
-                            {/* Delete button */}
-                            {(isAdmin || isManager) && (
-                              <Button
-                                onClick={() => setDeleteConfirmId(complaint.id)}
-                                className="bg-red-500 text-white text-xs px-2 py-1 mt-2 flex items-center justify-center"
-                                size="sm"
-                              >
-                                <Trash2 size={14} className="mr-1" /> Delete
-                              </Button>
-                            )}
+                            <AnimatePresence>
+                              {showAssignDropdown === complaint.id && (
+                                <motion.div 
+                                  className="relative left-0 mt-2 w-60 bg-[#1C1C1C] border border-[#f7eccf]/20 rounded-xl shadow-xl z-99"
+                                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                  transition={{ duration: 0.2 }}
+                                >
+                                  <div className="p-2 max-h-60 overflow-y-auto">
+                                    <div className="px-3 py-2 text-xs font-medium text-[#f7eccf]/50 uppercase">
+                                      Select employee
+                                    </div>
+                                    {employees
+                                      .filter(emp => emp.department_id === complaint.department_involved)
+                                      .map(emp => (
+                                        <motion.div
+                                          key={emp.id}
+                                          className="px-3 py-2 hover:bg-[#f7eccf]/10 rounded-lg cursor-pointer text-[#f7eccf] text-sm flex items-center gap-2"
+                                          onClick={() => assignComplaint(complaint.id, emp.id)}
+                                          whileHover={{ x: 4 }}
+                                        >
+                                          <div className="w-7 h-7 rounded-full bg-[#f7eccf]/10 flex items-center justify-center">
+                                            {emp.first_name.charAt(0)}{emp.last_name.charAt(0)}
+                                          </div>
+                                          <span>{emp.first_name} {emp.last_name}</span>
+                                        </motion.div>
+                                      ))
+                                    }
+                                    {employees.filter(emp => emp.department_id === complaint.department_involved).length === 0 && (
+                                      <div className="px-3 py-2 text-[#f7eccf]/50 text-sm italic">
+                                        No employees available
+                                      </div>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
                           </div>
                         )}
                         
-                        {/* For resolved complaints, only show delete button */}
-                        {complaint.status === 'resolved' && (isAdmin || isManager) && (
-                          <Button
+                        {/* Privacy toggle (for managers/admins) */}
+                        {(isAdmin || isManager) && complaint.severity !== 'high' && (
+                          <PrivacyToggle 
+                            isPrivate={complaint.is_private}
+                            onChange={() => togglePrivacy(complaint.id, !complaint.is_private)}
+                            disabled={complaint.severity === 'high'} 
+                          />
+                        )}
+                        
+                        {/* Delete button */}
+                        {(isAdmin || isManager) && (
+                          <motion.button
                             onClick={() => setDeleteConfirmId(complaint.id)}
-                            className="bg-red-500 text-white text-xs px-2 py-1 mt-2 flex items-center justify-center"
-                            size="sm"
+                            className="px-4 py-2 bg-red-500/10 text-red-500 rounded-xl shadow-md flex items-center gap-2"
+                            whileHover={{ scale: 1.05, y: -2, backgroundColor: 'rgba(239, 68, 68, 0.2)' }}
+                            whileTap={{ scale: 0.98 }}
                           >
-                            <Trash2 size={14} className="mr-1" /> Delete
-                          </Button>
+                            <Trash2 size={16} />
+                            Delete
+                          </motion.button>
                         )}
                       </div>
                     </div>
                   </CardBody>
                 </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </motion.div>
+
+      {/* Delete confirmation modal - centered on screen */}
+      <AnimatePresence>
+        {deleteConfirmId !== null && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {/* Backdrop with blur */}
+            <motion.div 
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setDeleteConfirmId(null)}
+            />
+            
+            {/* Modal content */}
+            <motion.div
+              className="bg-[#1C1C1C] rounded-3xl shadow-2xl p-6 max-w-md w-full z-10 border border-[#f7eccf]/10"
+              variants={modalVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              <div className="flex items-center mb-4 text-red-500">
+                <div className="p-3 bg-red-500/10 rounded-xl mr-4">
+                  <AlertTriangle size={24} />
+                </div>
+                <h3 className="text-xl font-bold">Confirm Deletion</h3>
+              </div>
+              
+              <p className="text-[#f7eccf]/90 mb-6">
+                Are you sure you want to delete this complaint? This action cannot be undone and all associated data will be permanently removed.
+              </p>
+              
+              <div className="flex space-x-3 justify-end">
+                <motion.button
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="px-5 py-2.5 bg-[#1C1C1C] border border-[#f7eccf]/30 text-[#f7eccf] rounded-xl font-medium shadow-md flex items-center gap-2"
+                  whileHover={{ scale: 1.05, y: -2, backgroundColor: 'rgba(247, 236, 207, 0.1)' }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <XCircle size={18} />
+                  Cancel
+                </motion.button>
+                <motion.button
+                  onClick={() => deleteComplaint(deleteConfirmId)}
+                  className="px-5 py-2.5 bg-red-500 text-white rounded-xl font-medium shadow-md flex items-center gap-2"
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Trash2 size={18} />
+                  Delete
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   )
 }
