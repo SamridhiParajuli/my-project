@@ -1,4 +1,5 @@
 // app/(dashboard)/equipment/page.tsx
+
 'use client'
 
 import { useState } from 'react'

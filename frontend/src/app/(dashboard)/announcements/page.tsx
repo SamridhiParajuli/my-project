@@ -1,4 +1,6 @@
 // app/(dashboard)/announcements/page.tsx
+// TODO: Minor SQL data sending error. Needs fix. And see more for too long announcements
+
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'

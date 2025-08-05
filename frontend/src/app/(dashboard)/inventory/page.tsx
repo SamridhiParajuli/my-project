@@ -1,4 +1,5 @@
 // app/(dashboard)/inventory/page.tsx
+// TODO: issue with filtering system. Fix it
 'use client'
 
 import { useState } from 'react'
