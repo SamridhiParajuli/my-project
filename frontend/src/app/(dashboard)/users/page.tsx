@@ -415,14 +415,16 @@ export default function UsersPage() {
     }
   }
 
-  // Custom Select Component
+  // Updated CustomSelect Component with name prop
   const CustomSelect = ({ 
+    name,
     value, 
     onChange, 
     options, 
     className = "",
     placeholder = "Select..."
   }: { 
+    name: string,
     value: string, 
     onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void, 
     options: {value: string, label: string}[],
@@ -432,6 +434,7 @@ export default function UsersPage() {
     return (
       <div className={`relative ${className}`}>
         <select
+          name={name}
           value={value}
           onChange={onChange}
           className="appearance-none w-full px-4 py-2.5 bg-[#f7eccf]/10 border border-[#f7eccf]/20 text-[#f7eccf] text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent transition-all pr-10"
@@ -568,6 +571,7 @@ export default function UsersPage() {
                 {/* Role Filter */}
                 <div>
                   <CustomSelect
+                    name="filterRole"
                     value={filterRole}
                     onChange={(e) => setFilterRole(e.target.value)}
                     options={[
@@ -584,6 +588,7 @@ export default function UsersPage() {
                 {/* User Type Filter */}
                 <div>
                   <CustomSelect
+                    name="filterUserType"
                     value={filterUserType}
                     onChange={(e) => setFilterUserType(e.target.value)}
                     options={[
@@ -824,8 +829,9 @@ export default function UsersPage() {
                       <div>
                         <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Role</label>
                         <CustomSelect
+                          name="role"
                           value={formData.role}
-                          onChange={(e) => handleInputChange({ ...e, target: { ...e.target, name: 'role' } })}
+                          onChange={handleInputChange}
                           options={roleOptions.map(role => ({
                             value: role,
                             label: role.charAt(0).toUpperCase() + role.slice(1)
@@ -837,8 +843,9 @@ export default function UsersPage() {
                       <div>
                         <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">User Type</label>
                         <CustomSelect
+                          name="user_type"
                           value={formData.user_type}
-                          onChange={(e) => handleInputChange({ ...e, target: { ...e.target, name: 'user_type' } })}
+                          onChange={handleInputChange}
                           options={[
                             { value: 'staff', label: 'Staff' },
                             { value: 'manager', label: 'Manager' },
@@ -851,8 +858,9 @@ export default function UsersPage() {
                       <div>
                         <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Linked Employee</label>
                         <CustomSelect
+                          name="employee_id"
                           value={formData.employee_id === null ? '' : formData.employee_id.toString()}
-                          onChange={(e) => handleInputChange({ ...e, target: { ...e.target, name: 'employee_id' } })}
+                          onChange={handleInputChange}
                           options={employees.map(emp => ({
                             value: emp.id.toString(),
                             label: `${emp.first_name} ${emp.last_name} (${emp.employee_id})`
@@ -864,8 +872,9 @@ export default function UsersPage() {
                       <div>
                         <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Department</label>
                         <CustomSelect
+                          name="department_id"
                           value={formData.department_id === null ? '' : formData.department_id.toString()}
-                          onChange={(e) => handleInputChange({ ...e, target: { ...e.target, name: 'department_id' } })}
+                          onChange={handleInputChange}
                           options={departments.map(dept => ({
                             value: dept.id.toString(),
                             label: dept.name
@@ -877,8 +886,9 @@ export default function UsersPage() {
                       <div>
                         <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Status</label>
                         <CustomSelect
+                          name="is_active"
                           value={formData.is_active.toString()}
-                          onChange={(e) => handleInputChange({ ...e, target: { ...e.target, name: 'is_active' } })}
+                          onChange={handleInputChange}
                           options={[
                             { value: 'true', label: 'Active' },
                             { value: 'false', label: 'Inactive' }

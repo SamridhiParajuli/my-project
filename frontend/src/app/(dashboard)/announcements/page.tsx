@@ -1,6 +1,4 @@
 // app/(dashboard)/announcements/page.tsx
-// TODO: Minor SQL data sending error. Needs fix. And see more for too long announcements
-
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
@@ -102,7 +100,10 @@ export default function AnnouncementsPage() {
       setLoading(false)
     } catch (err: any) {
       console.error('Error fetching announcements:', err)
-      setError(err.response?.data?.detail || 'Failed to load announcements')
+      const errorMessage = typeof err.response?.data?.detail === 'object' 
+        ? err.response?.data?.detail?.msg || 'Failed to load announcements'
+        : err.response?.data?.detail || 'Failed to load announcements'
+      setError(errorMessage)
       setLoading(false)
     }
   }
@@ -184,9 +185,17 @@ export default function AnnouncementsPage() {
         return
       }
       
+      // Construct the payload according to the API schema
       const payload = {
-        ...formData,
-        created_by: user?.id
+        title: formData.title,
+        message: formData.message,
+        announcement_type: formData.announcement_type,
+        target_department: formData.target_department,
+        priority: formData.priority,
+        is_active: formData.is_active,
+        expires_at: formData.expires_at || null,
+        target_roles: formData.target_roles,
+        created_by: user?.id || null
       }
       
       if (editingAnnouncement) {
@@ -216,7 +225,10 @@ export default function AnnouncementsPage() {
       setError(null)
     } catch (err: any) {
       console.error('Error submitting announcement:', err)
-      setError(err.response?.data?.detail || 'Failed to save announcement')
+      const errorMessage = typeof err.response?.data?.detail === 'object' 
+        ? err.response?.data?.detail?.msg || 'Failed to save announcement'
+        : err.response?.data?.detail || 'Failed to save announcement'
+      setError(errorMessage)
     }
   }
   
@@ -230,7 +242,10 @@ export default function AnnouncementsPage() {
       setDeleteConfirmId(null)
     } catch (err: any) {
       console.error('Error deleting announcement:', err)
-      setError(err.response?.data?.detail || 'Failed to delete announcement')
+      const errorMessage = typeof err.response?.data?.detail === 'object' 
+        ? err.response?.data?.detail?.msg || 'Failed to delete announcement'
+        : err.response?.data?.detail || 'Failed to delete announcement'
+      setError(errorMessage)
     }
   }
   
@@ -395,23 +410,26 @@ export default function AnnouncementsPage() {
     }
   };
 
-  // Custom select component
+  // Custom select component - FIXED VERSION
   const CustomSelect = ({ 
     value, 
     onChange, 
     options, 
-    className = "" 
+    className = "",
+    name = ""
   }: { 
     value: string, 
-    onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void, 
+    onChange: (value: string) => void, 
     options: {value: string, label: string}[],
-    className?: string 
+    className?: string,
+    name?: string
   }) => {
     return (
       <div className={`relative ${className}`}>
         <select
           value={value}
-          onChange={onChange}
+          onChange={(e) => onChange(e.target.value)}
+          name={name}
           className="appearance-none w-full px-4 py-2.5 bg-[#f7eccf]/10 border border-[#f7eccf]/20 text-[#f7eccf] text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent transition-all pr-10"
         >
           {options.map(option => (
@@ -531,7 +549,8 @@ export default function AnnouncementsPage() {
                 <div className="flex items-center gap-2">
                   <CustomSelect
                     value={filterPriority}
-                    onChange={(e) => setFilterPriority(e.target.value)}
+                    onChange={(value) => setFilterPriority(value)}
+                    name="filterPriority"
                     options={[
                       { value: 'all', label: 'All Priorities' },
                       { value: 'high', label: 'High Priority' },
@@ -544,7 +563,8 @@ export default function AnnouncementsPage() {
                   
                   <CustomSelect
                     value={filterType}
-                    onChange={(e) => setFilterType(e.target.value)}
+                    onChange={(value) => setFilterType(value)}
+                    name="filterType"
                     options={[
                       { value: 'all', label: 'All Types' },
                       { value: 'general', label: 'General' },
@@ -560,7 +580,8 @@ export default function AnnouncementsPage() {
                 <div className="flex items-center gap-2">
                   <CustomSelect
                     value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
+                    onChange={(value) => setSortBy(value)}
+                    name="sortBy"
                     options={[
                       { value: 'created_at', label: 'Sort by Date' },
                       { value: 'priority', label: 'Sort by Priority' }
@@ -690,12 +711,13 @@ export default function AnnouncementsPage() {
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        {/* Type */}
+                        {/* Type - FIXED */}
                         <div>
                           <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Type</label>
                           <CustomSelect
                             value={formData.announcement_type}
-                            onChange={(e) => handleInputChange({ ...e, target: { ...e.target, name: 'announcement_type' } })}
+                            onChange={(value) => setFormData(prev => ({ ...prev, announcement_type: value }))}
+                            name="announcement_type"
                             options={[
                               { value: 'general', label: 'General' },
                               { value: 'policy', label: 'Policy Change' },
@@ -706,12 +728,13 @@ export default function AnnouncementsPage() {
                           />
                         </div>
                         
-                        {/* Priority */}
+                        {/* Priority - FIXED */}
                         <div>
                           <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Priority</label>
                           <CustomSelect
                             value={formData.priority}
-                            onChange={(e) => handleInputChange({ ...e, target: { ...e.target, name: 'priority' } })}
+                            onChange={(value) => setFormData(prev => ({ ...prev, priority: value }))}
+                            name="priority"
                             options={[
                               { value: 'low', label: 'Low' },
                               { value: 'normal', label: 'Normal' },
@@ -721,13 +744,17 @@ export default function AnnouncementsPage() {
                           />
                         </div>
                         
-                        {/* Department - Only visible to admins and managers */}
+                        {/* Department - Only visible to admins and managers - FIXED */}
                         {(isAdmin || isManager) && (
                           <div>
                             <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Target Department</label>
                             <CustomSelect
                               value={formData.target_department === null ? '' : formData.target_department.toString()}
-                              onChange={(e) => handleInputChange({ ...e, target: { ...e.target, name: 'target_department' } })}
+                              onChange={(value) => setFormData(prev => ({ 
+                                ...prev, 
+                                target_department: value === '' ? null : Number(value) 
+                              }))}
+                              name="target_department"
                               options={[
                                 { value: '', label: 'All Departments' },
                                 ...(department ? [{ value: department.id.toString(), label: department.name }] : [])
