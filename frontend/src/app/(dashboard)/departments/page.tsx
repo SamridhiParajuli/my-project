@@ -468,10 +468,11 @@ export default function DepartmentsPage() {
                       defaultValue={formData.current.manager_id || ''}
                       onChange={handleInputChange}
                       className="w-full p-3 bg-[#f7eccf]/10 border-none rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf] transition-all appearance-none"
+                      style={{ color: "#f7eccf", backgroundColor: "rgba(28, 28, 28, 0.9)" }}
                     >
-                      <option value="">Select Manager</option>
+                      <option value="" style={{ color: "#1C1C1C", backgroundColor: "#f7eccf" }}>Select Manager</option>
                       {employees.map(emp => (
-                        <option key={emp.id} value={emp.id}>
+                        <option key={emp.id} value={emp.id} style={{ color: "#1C1C1C", backgroundColor: "#f7eccf" }}>
                           {emp.first_name} {emp.last_name}
                         </option>
                       ))}
@@ -490,9 +491,10 @@ export default function DepartmentsPage() {
                       defaultValue={formData.current.is_active.toString()}
                       onChange={handleInputChange}
                       className="w-full p-3 bg-[#f7eccf]/10 border-none rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf] transition-all appearance-none"
+                      style={{ color: "#f7eccf", backgroundColor: "rgba(28, 28, 28, 0.9)" }}
                     >
-                      <option value="true">Active</option>
-                      <option value="false">Inactive</option>
+                      <option value="true" style={{ color: "#1C1C1C", backgroundColor: "#f7eccf" }}>Active</option>
+                      <option value="false" style={{ color: "#1C1C1C", backgroundColor: "#f7eccf" }}>Inactive</option>
                     </select>
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none text-[#f7eccf]/70">
                       <ChevronDown size={16} />
@@ -647,9 +649,14 @@ export default function DepartmentsPage() {
                   onChange={(e) => setShowInactive(e.target.checked)}
                   className="sr-only"
                 />
-                <div className={`w-10 h-5 rounded-full transition-colors cursor-pointer ${showInactive ? 'bg-[#f7eccf]' : 'bg-[#f7eccf]/30'}`}>
-                  <div className={`absolute w-4 h-4 rounded-full transition-transform bg-[#1C1C1C] transform ${showInactive ? 'translate-x-5' : 'translate-x-1'} top-0.5`}></div>
-                </div>
+                <label 
+                  htmlFor="showInactive" 
+                  className={`block w-10 h-5 rounded-full transition-colors cursor-pointer ${showInactive ? 'bg-[#f7eccf]' : 'bg-[#f7eccf]/30'}`}
+                >
+                  <span 
+                    className={`absolute w-4 h-4 rounded-full transition-transform bg-[#1C1C1C] transform ${showInactive ? 'translate-x-5' : 'translate-x-1'} top-0.5`}
+                  ></span>
+                </label>
               </div>
             </div>
             
@@ -659,10 +666,11 @@ export default function DepartmentsPage() {
                 value={sortColumn}
                 onChange={(e) => handleSort(e.target.value)}
                 className="p-1.5 rounded-lg bg-[#f7eccf]/10 text-[#f7eccf] text-sm border-none shadow-inner"
+                style={{ color: "#f7eccf", backgroundColor: "rgba(28, 28, 28, 0.9)" }}
               >
-                <option value="name">Name</option>
-                <option value="code">Code</option>
-                <option value="status">Status</option>
+                <option value="name" style={{ color: "#1C1C1C", backgroundColor: "#f7eccf" }}>Name</option>
+                <option value="code" style={{ color: "#1C1C1C", backgroundColor: "#f7eccf" }}>Code</option>
+                <option value="status" style={{ color: "#1C1C1C", backgroundColor: "#f7eccf" }}>Status</option>
               </select>
               
               <button
@@ -735,10 +743,11 @@ export default function DepartmentsPage() {
                             defaultValue={formData.current.manager_id || ''}
                             onChange={handleInputChange}
                             className="w-full p-3 bg-[#f7eccf]/10 border-none rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf] transition-all appearance-none"
+                            style={{ color: "#f7eccf", backgroundColor: "rgba(28, 28, 28, 0.9)" }}
                           >
-                            <option value="">Select Manager</option>
+                            <option value="" style={{ color: "#1C1C1C", backgroundColor: "#f7eccf" }}>Select Manager</option>
                             {employees.map(emp => (
-                              <option key={emp.id} value={emp.id}>
+                              <option key={emp.id} value={emp.id} style={{ color: "#1C1C1C", backgroundColor: "#f7eccf" }}>
                                 {emp.first_name} {emp.last_name}
                               </option>
                             ))}
@@ -757,9 +766,10 @@ export default function DepartmentsPage() {
                             defaultValue={formData.current.is_active.toString()}
                             onChange={handleInputChange}
                             className="w-full p-3 bg-[#f7eccf]/10 border-none rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf] transition-all appearance-none"
+                            style={{ color: "#f7eccf", backgroundColor: "rgba(28, 28, 28, 0.9)" }}
                           >
-                            <option value="true">Active</option>
-                            <option value="false">Inactive</option>
+                            <option value="true" style={{ color: "#1C1C1C", backgroundColor: "#f7eccf" }}>Active</option>
+                            <option value="false" style={{ color: "#1C1C1C", backgroundColor: "#f7eccf" }}>Inactive</option>
                           </select>
                           <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none text-[#f7eccf]/70">
                             <ChevronDown size={16} />
@@ -1003,10 +1013,11 @@ export default function DepartmentsPage() {
                                             defaultValue={formData.current.manager_id || ''}
                                             onChange={handleInputChange}
                                             className="w-full p-3 bg-[#f7eccf]/10 border-none rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf] transition-all appearance-none"
+                                            style={{ color: "#f7eccf", backgroundColor: "rgba(28, 28, 28, 0.9)" }}
                                           >
-                                            <option value="">Select Manager</option>
+                                            <option value="" style={{ color: "#1C1C1C", backgroundColor: "#f7eccf" }}>Select Manager</option>
                                             {employees.map(emp => (
-                                              <option key={emp.id} value={emp.id}>
+                                              <option key={emp.id} value={emp.id} style={{ color: "#1C1C1C", backgroundColor: "#f7eccf" }}>
                                                 {emp.first_name} {emp.last_name}
                                               </option>
                                             ))}
@@ -1025,9 +1036,10 @@ export default function DepartmentsPage() {
                                             defaultValue={formData.current.is_active.toString()}
                                             onChange={handleInputChange}
                                             className="w-full p-3 bg-[#f7eccf]/10 border-none rounded-xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf] transition-all appearance-none"
+                                            style={{ color: "#f7eccf", backgroundColor: "rgba(28, 28, 28, 0.9)" }}
                                           >
-                                            <option value="true">Active</option>
-                                            <option value="false">Inactive</option>
+                                            <option value="true" style={{ color: "#1C1C1C", backgroundColor: "#f7eccf" }}>Active</option>
+                                            <option value="false" style={{ color: "#1C1C1C", backgroundColor: "#f7eccf" }}>Inactive</option>
                                           </select>
                                           <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none text-[#f7eccf]/70">
                                             <ChevronDown size={16} />
@@ -1114,7 +1126,7 @@ export default function DepartmentsPage() {
             />
             
             <motion.div 
-              className="fixed top-1/2 left-1/3  bg-[#1C1C1C] rounded-3xl shadow-2xl p-6 z-50 w-full max-w-md"
+              className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-[#1C1C1C] rounded-3xl shadow-2xl p-6 z-50 w-full max-w-md"
               variants={modalVariants}
               initial="hidden"
               animate="visible"
