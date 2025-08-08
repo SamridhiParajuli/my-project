@@ -258,6 +258,7 @@ export default function EmployeesPage() {
     return dept ? dept.name : `Department ${departmentId}`
   }
 
+  // Fixed: Improved handleInputChange to properly handle select changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     
@@ -266,13 +267,13 @@ export default function EmployeesPage() {
       // Handle department_id - convert to number or null
       setFormData(prev => ({
         ...prev,
-        [name]: value === '' ? null : parseInt(value)
+        department_id: value === '' ? null : Number(value)
       }))
     } else if (name === 'hire_date') {
       // Handle date fields - ensure proper ISO format
       setFormData(prev => ({
         ...prev,
-        [name]: value // Value from date input is already in YYYY-MM-DD format
+        hire_date: value // Value from date input is already in YYYY-MM-DD format
       }))
     } else {
       // Handle all other fields normally
@@ -406,24 +407,30 @@ export default function EmployeesPage() {
     setDeleteConfirmModal({ show: false, employee: null })
   }
 
-  // Custom Select Component
+  // Fixed: Improved CustomSelect to handle dropdown selections correctly
   const CustomSelect = ({ 
+    name,
     value, 
     onChange, 
     options, 
     className = "",
     placeholder = "Select..."
   }: { 
-    value: string, 
+    name: string,
+    value: string | number | null, 
     onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void, 
     options: {value: string, label: string}[],
     className?: string,
     placeholder?: string
   }) => {
+    // Convert value to string for the select element
+    const stringValue = value === null ? '' : String(value)
+    
     return (
       <div className={`relative ${className}`}>
         <select
-          value={value}
+          name={name}
+          value={stringValue}
           onChange={onChange}
           className="appearance-none w-full px-4 py-2.5 bg-[#f7eccf]/10 border border-[#f7eccf]/20 text-[#f7eccf] text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent transition-all pr-10"
         >
@@ -559,6 +566,7 @@ export default function EmployeesPage() {
                 {/* Status Filter */}
                 <div>
                   <CustomSelect
+                    name="filterStatus"
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
                     options={[
@@ -574,6 +582,7 @@ export default function EmployeesPage() {
                 {/* Department Filter */}
                 <div>
                   <CustomSelect
+                    name="filterDepartment"
                     value={filterDepartment}
                     onChange={(e) => setFilterDepartment(e.target.value)}
                     options={[
@@ -763,9 +772,11 @@ export default function EmployeesPage() {
                       
                       <div>
                         <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Department</label>
+                        {/* Fixed: Added name property and updated CustomSelect for proper handling */}
                         <CustomSelect
-                          value={formData.department_id === null ? '' : formData.department_id.toString()}
-                          onChange={(e) => handleInputChange({ ...e, target: { ...e.target, name: 'department_id' } })}
+                          name="department_id"
+                          value={formData.department_id}
+                          onChange={handleInputChange}
                           options={departments.map(dept => ({
                             value: dept.id.toString(),
                             label: dept.name
@@ -822,9 +833,11 @@ export default function EmployeesPage() {
                       
                       <div>
                         <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Position</label>
+                        {/* Fixed: Added name property and updated CustomSelect for proper handling */}
                         <CustomSelect
+                          name="position"
                           value={formData.position}
-                          onChange={(e) => handleInputChange({ ...e, target: { ...e.target, name: 'position' } })}
+                          onChange={handleInputChange}
                           options={positionOptions.map(pos => ({
                             value: pos,
                             label: pos
@@ -835,9 +848,11 @@ export default function EmployeesPage() {
                       
                       <div>
                         <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Status</label>
+                        {/* Fixed: Added name property and updated CustomSelect for proper handling */}
                         <CustomSelect
+                          name="status"
                           value={formData.status}
-                          onChange={(e) => handleInputChange({ ...e, target: { ...e.target, name: 'status' } })}
+                          onChange={handleInputChange}
                           options={[
                             { value: 'active', label: 'Active' },
                             { value: 'inactive', label: 'Inactive' },
