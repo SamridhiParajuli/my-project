@@ -30,18 +30,22 @@ import {
   Search
 } from 'lucide-react'
 
+// Properly align interface with API schema
 interface Announcement {
   id: number;
   title: string;
-  message: string;
-  announcement_type: string;
-  target_department?: number | null;
-  created_by: number;
-  creator_name?: string;
-  priority: string;
+  content: string; // API uses "content" not "message"
+  published_by: number; // API uses "published_by" not "created_by"
+  start_date: string; // Required field in API
+  end_date?: string | null; // API uses "end_date" not "expires_at"
   is_active: boolean;
+  priority: string;
+  departments?: number[] | null; // API uses "departments" array not "target_department"
   created_at: string;
-  expires_at?: string;
+  
+  // Frontend only fields (not in API)
+  creator_name?: string;
+  announcement_type?: string;
   target_roles?: string[];
   target_department_name?: string;
 }
@@ -63,12 +67,12 @@ export default function AnnouncementsPage() {
   const [filterType, setFilterType] = useState<string>('all')
   const [formData, setFormData] = useState({
     title: '',
-    message: '',
-    announcement_type: 'general',
-    target_department: user?.department_id || null,
+    content: '', // Changed from "message" to match API
+    announcement_type: 'general', // Frontend-only field
+    target_department: user?.department_id || null, // Will be transformed to departments array
     priority: 'normal',
-    expires_at: '',
-    target_roles: [] as string[],
+    end_date: '', // Changed from "expires_at" to match API
+    target_roles: [] as string[], // Frontend-only field
     is_active: true
   })
   
@@ -148,11 +152,12 @@ export default function AnnouncementsPage() {
     setEditingAnnouncement(announcement)
     setFormData({
       title: announcement.title,
-      message: announcement.message,
-      announcement_type: announcement.announcement_type,
-      target_department: announcement.target_department || null,
+      content: announcement.content, // Changed from message to content
+      announcement_type: announcement.announcement_type || 'general',
+      target_department: announcement.departments && announcement.departments.length > 0 ? 
+        announcement.departments[0] : null, // Convert from array to single value
       priority: announcement.priority || 'normal',
-      expires_at: announcement.expires_at ? new Date(announcement.expires_at).toISOString().split('T')[0] : '',
+      end_date: announcement.end_date ? new Date(announcement.end_date).toISOString().split('T')[0] : '', // Changed from expires_at
       target_roles: announcement.target_roles || [],
       is_active: announcement.is_active
     })
@@ -166,11 +171,11 @@ export default function AnnouncementsPage() {
     setEditingAnnouncement(null)
     setFormData({
       title: '',
-      message: '',
+      content: '', // Changed from message
       announcement_type: 'general',
       target_department: user?.department_id || null,
       priority: 'normal',
-      expires_at: '',
+      end_date: '', // Changed from expires_at
       target_roles: [],
       is_active: true
     })
@@ -180,22 +185,21 @@ export default function AnnouncementsPage() {
   // Submit announcement (create or update)
   const handleSubmitAnnouncement = async () => {
     try {
-      if (!formData.title || !formData.message) {
-        setError('Title and message are required')
+      if (!formData.title || !formData.content) {
+        setError('Title and content are required')
         return
       }
       
       // Construct the payload according to the API schema
       const payload = {
         title: formData.title,
-        message: formData.message,
-        announcement_type: formData.announcement_type,
-        target_department: formData.target_department,
+        content: formData.content, // Changed from message to content
+        published_by: user?.id, // Required field in API
+        start_date: new Date().toISOString(), // Required field in API
+        end_date: formData.end_date ? new Date(formData.end_date).toISOString() : null, // Changed from expires_at
         priority: formData.priority,
         is_active: formData.is_active,
-        expires_at: formData.expires_at || null,
-        target_roles: formData.target_roles,
-        created_by: user?.id || null
+        departments: formData.target_department ? [formData.target_department] : null // Convert to array
       }
       
       if (editingAnnouncement) {
@@ -211,11 +215,11 @@ export default function AnnouncementsPage() {
       setEditingAnnouncement(null)
       setFormData({
         title: '',
-        message: '',
+        content: '',
         announcement_type: 'general',
         target_department: user?.department_id || null,
         priority: 'normal',
-        expires_at: '',
+        end_date: '',
         target_roles: [],
         is_active: true
       })
@@ -326,7 +330,7 @@ export default function AnnouncementsPage() {
       .filter(announcement => {
         const matchesSearch = searchTerm 
           ? announcement.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            announcement.message.toLowerCase().includes(searchTerm.toLowerCase())
+            (announcement.content && announcement.content.toLowerCase().includes(searchTerm.toLowerCase()))
           : true;
         
         const matchesPriority = filterPriority === 'all' 
@@ -410,7 +414,7 @@ export default function AnnouncementsPage() {
     }
   };
 
-  // Custom select component - FIXED VERSION
+  // Custom select component
   const CustomSelect = ({ 
     value, 
     onChange, 
@@ -496,11 +500,11 @@ export default function AnnouncementsPage() {
                           if (!showForm) {
                             setFormData({
                               title: '',
-                              message: '',
+                              content: '',
                               announcement_type: 'general',
                               target_department: user?.department_id || null,
                               priority: 'normal',
-                              expires_at: '',
+                              end_date: '',
                               target_roles: [],
                               is_active: true
                             })
@@ -697,12 +701,12 @@ export default function AnnouncementsPage() {
                         />
                       </div>
                       
-                      {/* Message */}
+                      {/* Content - renamed from Message to match API */}
                       <div>
-                        <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Message</label>
+                        <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Content</label>
                         <textarea
-                          name="message"
-                          value={formData.message}
+                          name="content" 
+                          value={formData.content}
                           onChange={handleInputChange}
                           rows={4}
                           className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-2xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent transition-all"
@@ -711,7 +715,7 @@ export default function AnnouncementsPage() {
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        {/* Type - FIXED */}
+                        {/* Type */}
                         <div>
                           <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Type</label>
                           <CustomSelect
@@ -728,7 +732,7 @@ export default function AnnouncementsPage() {
                           />
                         </div>
                         
-                        {/* Priority - FIXED */}
+                        {/* Priority */}
                         <div>
                           <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Priority</label>
                           <CustomSelect
@@ -744,7 +748,7 @@ export default function AnnouncementsPage() {
                           />
                         </div>
                         
-                        {/* Department - Only visible to admins and managers - FIXED */}
+                        {/* Department - Only visible to admins and managers */}
                         {(isAdmin || isManager) && (
                           <div>
                             <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Target Department</label>
@@ -763,14 +767,14 @@ export default function AnnouncementsPage() {
                           </div>
                         )}
                         
-                        {/* Expiration */}
+                        {/* Expiration - renamed to end_date to match API */}
                         <div>
-                          <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Expires At</label>
+                          <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">End Date</label>
                           <div className="relative">
                             <input
                               type="date"
-                              name="expires_at"
-                              value={formData.expires_at}
+                              name="end_date"
+                              value={formData.end_date}
                               onChange={handleInputChange}
                               className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-full text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent transition-all"
                             />
@@ -884,15 +888,17 @@ export default function AnnouncementsPage() {
                                       {announcement.priority}
                                     </span>
                                     
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs rounded-full bg-[#f7eccf]/20 text-[#f7eccf]">
-                                      {getAnnouncementTypeIcon(announcement.announcement_type)}
-                                      <span className="capitalize">{announcement.announcement_type}</span>
-                                    </span>
+                                    {announcement.announcement_type && (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs rounded-full bg-[#f7eccf]/20 text-[#f7eccf]">
+                                        {getAnnouncementTypeIcon(announcement.announcement_type)}
+                                        <span className="capitalize">{announcement.announcement_type}</span>
+                                      </span>
+                                    )}
                                     
-                                    {announcement.target_department && (
+                                    {announcement.departments && announcement.departments.length > 0 && (
                                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-500">
                                         <Users size={12} />
-                                        {announcement.target_department_name || `Dept ${announcement.target_department}`}
+                                        {announcement.target_department_name || `Dept ${announcement.departments[0]}`}
                                       </span>
                                     )}
                                     
@@ -905,7 +911,7 @@ export default function AnnouncementsPage() {
                                   </div>
                                 </div>
                                 
-                                <p className="text-[#f7eccf]/80 mb-4 text-sm">{announcement.message}</p>
+                                <p className="text-[#f7eccf]/80 mb-4 text-sm">{announcement.content}</p>
                                 
                                 <div className="flex flex-wrap gap-3 text-xs text-[#f7eccf]/60">
                                   <span className="flex items-center">
@@ -913,10 +919,10 @@ export default function AnnouncementsPage() {
                                     Posted: {formatDate(announcement.created_at)}
                                   </span>
                                   
-                                  {announcement.expires_at && (
+                                  {announcement.end_date && (
                                     <span className="flex items-center">
                                       <Clock size={12} className="mr-1.5" />
-                                      Expires: {formatDate(announcement.expires_at)}
+                                      Expires: {formatDate(announcement.end_date)}
                                     </span>
                                   )}
                                 </div>

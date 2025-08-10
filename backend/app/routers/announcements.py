@@ -236,13 +236,14 @@ def create_announcement(
 ):
     new_announcement = {
         "title": announcement_data.title,
-        "message": announcement_data.message,
+        "content": announcement_data.content,
+        "departments": announcement_data.departments[0],
         "announcement_type": announcement_data.announcement_type,
-        "target_department": announcement_data.target_department,
-        "created_by": announcement_data.created_by or current_user["id"],
+        "published_by": announcement_data.published_by,
         "priority": announcement_data.priority,
         "is_active": announcement_data.is_active,
-        "expires_at": announcement_data.expires_at,
+        "start_date": announcement_data.start_date,
+        "end_date": announcement_data.end_date,
         "target_roles": announcement_data.target_roles
     }
     

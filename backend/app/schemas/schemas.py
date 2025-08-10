@@ -517,6 +517,8 @@ class AnnouncementBase(BaseModel):
     is_active: bool = True
     priority: str = "normal"
     departments: Optional[List[int]] = None
+    announcement_type: Optional[str] = "general"
+    target_roles: Optional[List[int]] = None
 
 class AnnouncementCreate(AnnouncementBase):
     pass
