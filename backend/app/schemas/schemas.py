@@ -510,26 +510,27 @@ class TrainingRecordWithNames(TrainingRecord):
 # Announcement Schemas
 class AnnouncementBase(BaseModel):
     title: str
-    content: str
-    published_by: int
-    start_date: datetime
-    end_date: Optional[datetime] = None
-    is_active: bool = True
-    priority: str = "normal"
-    department: Optional[int] = None
+    message: str  # Changed from content
     announcement_type: Optional[str] = "general"
-    target_roles: Optional[List[int]] = None
+    target_department: Optional[int] = None  # Changed from department
+    created_by: int  # Changed from published_by
+    priority: str = "normal"
+    is_active: bool = True
+    expires_at: Optional[datetime] = None  # Changed from end_date
+    target_roles: Optional[List[str]] = None  # Changed from List[int]
 
 class AnnouncementCreate(AnnouncementBase):
     pass
 
 class AnnouncementUpdate(BaseModel):
     title: Optional[str] = None
-    content: Optional[str] = None
-    end_date: Optional[datetime] = None
+    message: Optional[str] = None  # Changed from content
+    expires_at: Optional[datetime] = None  # Changed from end_date
     is_active: Optional[bool] = None
     priority: Optional[str] = None
-    departments: Optional[List[int]] = None
+    target_department: Optional[int] = None  # Changed from departments
+    announcement_type: Optional[str] = None
+    target_roles: Optional[List[str]] = None
 
 class Announcement(AnnouncementBase):
     id: int
@@ -539,8 +540,8 @@ class Announcement(AnnouncementBase):
         from_attributes = True
 
 class AnnouncementWithAuthor(Announcement):
-    published_by_name: Optional[str] = None
-    department_names: Optional[List[str]] = None
+    created_by_name: Optional[str] = None  # Changed from published_by_name
+    department_name: Optional[str] = None  # Changed from department_names
     is_read: Optional[bool] = False
 
 # Permission Schemas

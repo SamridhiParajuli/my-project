@@ -234,23 +234,25 @@ def create_announcement(
     db: Session = Depends(get_db),
     current_user: dict = Depends(manager_or_admin)  # Only managers or admins can create announcements
 ):
+    # Create new announcement with proper field mapping
     new_announcement = {
         "title": announcement_data.title,
-        "content": announcement_data.content,
-        "departments": announcement_data.department,
+        "message": announcement_data.message,  # Changed from content
         "announcement_type": announcement_data.announcement_type,
-        "published_by": announcement_data.published_by,
+        "target_department": announcement_data.target_department,  # Changed from department
+        "created_by": announcement_data.created_by,  # Changed from published_by
         "priority": announcement_data.priority,
         "is_active": announcement_data.is_active,
-        "start_date": announcement_data.start_date,
-        "end_date": announcement_data.end_date,
+        "expires_at": announcement_data.expires_at,  # Changed from end_date
         "target_roles": announcement_data.target_roles
     }
     
+    # Insert into database
     insert_stmt = insert(announcements).values(**new_announcement)
     result = db.execute(insert_stmt)
     db.commit()
     
+    # Return created announcement
     announcement_id = result.inserted_primary_key[0]
     query = select(announcements).where(announcements.c.id == announcement_id)
     result = db.execute(query).fetchone()
@@ -260,7 +262,7 @@ def create_announcement(
 @router.put("/{announcement_id}", response_model=schemas.Announcement)
 def update_announcement(
     announcement_id: int, 
-    announcement_data: dict, 
+    announcement_data: schemas.AnnouncementUpdate, 
     db: Session = Depends(get_db),
     current_user: dict = Depends(manager_or_admin)  # Only managers or admins can update announcements
 ):
@@ -272,14 +274,30 @@ def update_announcement(
     
     # Prepare update values (only include fields that were provided)
     update_values = {}
-    for key, value in announcement_data.items():
-        if value is not None:
-            update_values[key] = value
     
-    # Update announcement
-    update_stmt = update(announcements).where(announcements.c.id == announcement_id).values(**update_values)
-    db.execute(update_stmt)
-    db.commit()
+    # Map fields from schema to database columns
+    field_mapping = {
+        "title": "title",
+        "message": "message",
+        "announcement_type": "announcement_type",
+        "target_department": "target_department",
+        "priority": "priority",
+        "is_active": "is_active",
+        "expires_at": "expires_at",
+        "target_roles": "target_roles"
+    }
+    
+    # Convert Pydantic model to dict and apply field mapping
+    announcement_dict = announcement_data.dict(exclude_unset=True)
+    for schema_field, db_field in field_mapping.items():
+        if schema_field in announcement_dict and announcement_dict[schema_field] is not None:
+            update_values[db_field] = announcement_dict[schema_field]
+    
+    # Update announcement if there are values to update
+    if update_values:
+        update_stmt = update(announcements).where(announcements.c.id == announcement_id).values(**update_values)
+        db.execute(update_stmt)
+        db.commit()
     
     # Fetch updated announcement
     query = select(announcements).where(announcements.c.id == announcement_id)
