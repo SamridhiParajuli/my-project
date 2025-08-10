@@ -516,7 +516,7 @@ class AnnouncementBase(BaseModel):
     end_date: Optional[datetime] = None
     is_active: bool = True
     priority: str = "normal"
-    departments: Optional[List[int]] = None
+    department: Optional[int] = None
     announcement_type: Optional[str] = "general"
     target_roles: Optional[List[int]] = None
 

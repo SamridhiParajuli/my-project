@@ -237,7 +237,7 @@ def create_announcement(
     new_announcement = {
         "title": announcement_data.title,
         "content": announcement_data.content,
-        "departments": announcement_data.departments[0],
+        "departments": announcement_data.department,
         "announcement_type": announcement_data.announcement_type,
         "published_by": announcement_data.published_by,
         "priority": announcement_data.priority,
