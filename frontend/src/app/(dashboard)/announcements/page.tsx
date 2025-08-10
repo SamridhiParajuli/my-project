@@ -34,24 +34,30 @@ import {
 interface Announcement {
   id: number;
   title: string;
-  content: string; // API uses "content" not "message"
-  published_by: number; // API uses "published_by" not "created_by"
-  start_date: string; // Required field in API
-  end_date?: string | null; // API uses "end_date" not "expires_at"
-  is_active: boolean;
+  message: string; // API uses "message" not "content"
+  announcement_type: string | null;
+  target_department: number | null; // API uses single "target_department", not array
+  created_by: number; // API uses "created_by" not "published_by"
   priority: string;
-  departments?: number[] | null; // API uses "departments" array not "target_department"
+  is_active: boolean;
+  expires_at: string | null; // API uses "expires_at" not "end_date"
+  target_roles: string[] | null;
   created_at: string;
   
   // Frontend only fields (not in API)
   creator_name?: string;
-  announcement_type?: string;
-  target_roles?: string[];
   target_department_name?: string;
 }
 
 export default function AnnouncementsPage() {
-  const { user, isManager, isAdmin, department } = useAuth()
+  const { user, isLoading, employee } = useAuth()
+  
+  // Determine if user is admin or manager
+  const isAdmin = user?.role === 'admin'
+  const isManager = user?.role === 'manager'
+  const department = user?.department_id || null
+  const employee_id = user?.employee_id
+
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [unreadAnnouncements, setUnreadAnnouncements] = useState<Announcement[]>([])
   const [loading, setLoading] = useState<boolean>(true)
@@ -67,38 +73,47 @@ export default function AnnouncementsPage() {
   const [filterType, setFilterType] = useState<string>('all')
   const [formData, setFormData] = useState({
     title: '',
-    content: '', // Changed from "message" to match API
-    announcement_type: 'general', // Frontend-only field
-    target_department: user?.department_id || null, // Will be transformed to departments array
+    message: '', // Changed from "content" to match API
+    announcement_type: 'general',
+    target_department: department || null, // Changed from array to single value
     priority: 'normal',
-    end_date: '', // Changed from "expires_at" to match API
-    target_roles: [] as string[], // Frontend-only field
+    expires_at: '', // Changed from "end_date" to match API
+    target_roles: [] as string[],
     is_active: true
   })
   
   // Fetch announcements on component mount
   useEffect(() => {
-    fetchAnnouncements()
-  }, [user, activeTab])
+    if (!isLoading) {
+      fetchAnnouncements()
+    }
+  }, [user, activeTab, isLoading])
   
   // Fetch announcements from API
   const fetchAnnouncements = async () => {
     try {
       setLoading(true)
       
-      // Fetch all announcements
+      // Fetch all announcements - correct API endpoint
       const response = await api.get('/announcements', { 
         params: { is_active: true }
       })
       
       if (response.data && response.data.items) {
         setAnnouncements(response.data.items)
+      } else if (Array.isArray(response.data)) {
+        // Handle case where API returns array directly
+        setAnnouncements(response.data)
       }
       
       // Fetch unread announcements specifically for the user
       const unreadResponse = await api.get('/announcements/unread/me')
       if (unreadResponse.data) {
-        setUnreadAnnouncements(unreadResponse.data)
+        if (Array.isArray(unreadResponse.data)) {
+          setUnreadAnnouncements(unreadResponse.data)
+        } else if (unreadResponse.data.items) {
+          setUnreadAnnouncements(unreadResponse.data.items)
+        }
       }
       
       setLoading(false)
@@ -152,12 +167,11 @@ export default function AnnouncementsPage() {
     setEditingAnnouncement(announcement)
     setFormData({
       title: announcement.title,
-      content: announcement.content, // Changed from message to content
+      message: announcement.message, // Changed from content to message
       announcement_type: announcement.announcement_type || 'general',
-      target_department: announcement.departments && announcement.departments.length > 0 ? 
-        announcement.departments[0] : null, // Convert from array to single value
+      target_department: announcement.target_department, // Correct field name
       priority: announcement.priority || 'normal',
-      end_date: announcement.end_date ? new Date(announcement.end_date).toISOString().split('T')[0] : '', // Changed from expires_at
+      expires_at: announcement.expires_at ? new Date(announcement.expires_at).toISOString().split('T')[0] : '', // Changed from end_date
       target_roles: announcement.target_roles || [],
       is_active: announcement.is_active
     })
@@ -171,11 +185,11 @@ export default function AnnouncementsPage() {
     setEditingAnnouncement(null)
     setFormData({
       title: '',
-      content: '', // Changed from message
+      message: '', // Changed from content
       announcement_type: 'general',
       target_department: user?.department_id || null,
       priority: 'normal',
-      end_date: '', // Changed from expires_at
+      expires_at: '', // Changed from end_date
       target_roles: [],
       is_active: true
     })
@@ -185,21 +199,22 @@ export default function AnnouncementsPage() {
   // Submit announcement (create or update)
   const handleSubmitAnnouncement = async () => {
     try {
-      if (!formData.title || !formData.content) {
-        setError('Title and content are required')
+      if (!formData.title || !formData.message) {
+        setError('Title and message are required')
         return
       }
       
       // Construct the payload according to the API schema
       const payload = {
         title: formData.title,
-        content: formData.content, // Changed from message to content
-        published_by: user?.id, // Required field in API
-        start_date: new Date().toISOString(), // Required field in API
-        end_date: formData.end_date ? new Date(formData.end_date).toISOString() : null, // Changed from expires_at
+        message: formData.message, // Changed from content to message
+        created_by: user?.employee_id, // Changed from published_by to created_by
+        target_department: formData.target_department, // Correct field
         priority: formData.priority,
         is_active: formData.is_active,
-        departments: formData.target_department ? [formData.target_department] : null // Convert to array
+        expires_at: formData.expires_at ? new Date(formData.expires_at).toISOString() : null, // Changed from end_date
+        announcement_type: formData.announcement_type,
+        target_roles: formData.target_roles.length > 0 ? formData.target_roles : null
       }
       
       if (editingAnnouncement) {
@@ -215,11 +230,11 @@ export default function AnnouncementsPage() {
       setEditingAnnouncement(null)
       setFormData({
         title: '',
-        content: '',
+        message: '',
         announcement_type: 'general',
         target_department: user?.department_id || null,
         priority: 'normal',
-        end_date: '',
+        expires_at: '',
         target_roles: [],
         is_active: true
       })
@@ -303,7 +318,7 @@ export default function AnnouncementsPage() {
   }
 
   // Get announcement type icon
-  const getAnnouncementTypeIcon = (type: string) => {
+  const getAnnouncementTypeIcon = (type: string | null) => {
     switch(type) {
       case 'general':
         return <Info size={16} />;
@@ -330,7 +345,7 @@ export default function AnnouncementsPage() {
       .filter(announcement => {
         const matchesSearch = searchTerm 
           ? announcement.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            (announcement.content && announcement.content.toLowerCase().includes(searchTerm.toLowerCase()))
+            (announcement.message && announcement.message.toLowerCase().includes(searchTerm.toLowerCase()))
           : true;
         
         const matchesPriority = filterPriority === 'all' 
@@ -500,11 +515,11 @@ export default function AnnouncementsPage() {
                           if (!showForm) {
                             setFormData({
                               title: '',
-                              content: '',
+                              message: '',
                               announcement_type: 'general',
                               target_department: user?.department_id || null,
                               priority: 'normal',
-                              end_date: '',
+                              expires_at: '',
                               target_roles: [],
                               is_active: true
                             })
@@ -701,12 +716,12 @@ export default function AnnouncementsPage() {
                         />
                       </div>
                       
-                      {/* Content - renamed from Message to match API */}
+                      {/* Message - renamed from content to match API */}
                       <div>
-                        <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Content</label>
+                        <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Message</label>
                         <textarea
-                          name="content" 
-                          value={formData.content}
+                          name="message" 
+                          value={formData.message}
                           onChange={handleInputChange}
                           rows={4}
                           className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-2xl text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent transition-all"
@@ -761,20 +776,20 @@ export default function AnnouncementsPage() {
                               name="target_department"
                               options={[
                                 { value: '', label: 'All Departments' },
-                                ...(department ? [{ value: department.id.toString(), label: department.name }] : [])
+                                ...(department ? [{ value: department.toString(), label: department.toString() }] : [])
                               ]}
                             />
                           </div>
                         )}
                         
-                        {/* Expiration - renamed to end_date to match API */}
+                        {/* Expiration date - renamed to expires_at to match API */}
                         <div>
-                          <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">End Date</label>
+                          <label className="block text-sm font-medium mb-1.5 text-[#f7eccf]/80">Expires At</label>
                           <div className="relative">
                             <input
                               type="date"
-                              name="end_date"
-                              value={formData.end_date}
+                              name="expires_at"
+                              value={formData.expires_at}
                               onChange={handleInputChange}
                               className="w-full p-3 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-full text-[#f7eccf] focus:ring-2 focus:ring-[#f7eccf]/50 focus:border-transparent transition-all"
                             />
@@ -895,10 +910,10 @@ export default function AnnouncementsPage() {
                                       </span>
                                     )}
                                     
-                                    {announcement.departments && announcement.departments.length > 0 && (
+                                    {announcement.target_department && (
                                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-500">
                                         <Users size={12} />
-                                        {announcement.target_department_name || `Dept ${announcement.departments[0]}`}
+                                        {announcement.target_department_name || `Dept ${announcement.target_department}`}
                                       </span>
                                     )}
                                     
@@ -911,7 +926,7 @@ export default function AnnouncementsPage() {
                                   </div>
                                 </div>
                                 
-                                <p className="text-[#f7eccf]/80 mb-4 text-sm">{announcement.content}</p>
+                                <p className="text-[#f7eccf]/80 mb-4 text-sm">{announcement.message}</p>
                                 
                                 <div className="flex flex-wrap gap-3 text-xs text-[#f7eccf]/60">
                                   <span className="flex items-center">
@@ -919,10 +934,10 @@ export default function AnnouncementsPage() {
                                     Posted: {formatDate(announcement.created_at)}
                                   </span>
                                   
-                                  {announcement.end_date && (
+                                  {announcement.expires_at && (
                                     <span className="flex items-center">
                                       <Clock size={12} className="mr-1.5" />
-                                      Expires: {formatDate(announcement.end_date)}
+                                      Expires: {formatDate(announcement.expires_at)}
                                     </span>
                                   )}
                                 </div>
