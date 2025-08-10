@@ -8,6 +8,8 @@ import Button from '@/components/ui/Button'
 import { SearchBar } from '@/components/ui/SearchBar'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/services/api'
+import { getDepartments } from '@/services/departments' // Import the departments service
+import { Department } from '@/types'
 import { 
   MessageSquare, 
   ChevronRight, 
@@ -57,8 +59,6 @@ export default function AnnouncementsPage() {
   const isManager = user?.role === 'manager'
   const department = user?.department_id || null;
 
-  
-
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [unreadAnnouncements, setUnreadAnnouncements] = useState<Announcement[]>([])
   const [loading, setLoading] = useState<boolean>(true)
@@ -72,6 +72,7 @@ export default function AnnouncementsPage() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [filterPriority, setFilterPriority] = useState<string>('all')
   const [filterType, setFilterType] = useState<string>('all')
+  const [departments, setDepartments] = useState<Department[]>([]) // Add state for departments
   const [formData, setFormData] = useState({
     title: '',
     message: '', // Changed from "content" to match API
@@ -87,8 +88,30 @@ export default function AnnouncementsPage() {
   useEffect(() => {
     if (!isLoading) {
       fetchAnnouncements()
+      fetchDepartments() // Fetch departments
     }
   }, [user, activeTab, isLoading])
+  
+  // Function to fetch departments from API
+  const fetchDepartments = async () => {
+    try {
+      const response = await getDepartments({ is_active: true });
+      if (response && response.items) {
+        setDepartments(response.items);
+      } else if (Array.isArray(response)) {
+        setDepartments(response);
+      }
+    } catch (err) {
+      console.error('Error fetching departments:', err);
+    }
+  }
+  
+  // Helper function to get department name from ID
+  const getDepartmentName = (departmentId: number | null): string => {
+    if (!departmentId) return 'All Departments';
+    const dept = departments.find(d => d.id === departmentId);
+    return dept ? dept.name : `Dept ${departmentId}`;
+  };
   
   // Fetch announcements from API
   const fetchAnnouncements = async () => {
@@ -209,7 +232,7 @@ export default function AnnouncementsPage() {
       const payload = {
         title: formData.title,
         message: formData.message, // Changed from content to message
-        created_by: user?.employee_id, // Changed from published_by to created_by
+        created_by: user?.employee_id, // it is important to use employee_id here
         target_department: formData.target_department, // Correct field
         priority: formData.priority,
         is_active: formData.is_active,
@@ -777,7 +800,10 @@ export default function AnnouncementsPage() {
                               name="target_department"
                               options={[
                                 { value: '', label: 'All Departments' },
-                                ...(department ? [{ value: department.toString(), label: department.toString() }] : [])
+                                ...departments.map(dept => ({ 
+                                  value: dept.id.toString(), 
+                                  label: dept.name 
+                                }))
                               ]}
                             />
                           </div>
@@ -914,7 +940,7 @@ export default function AnnouncementsPage() {
                                     {announcement.target_department && (
                                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-500">
                                         <Users size={12} />
-                                        {announcement.target_department_name || `Dept ${announcement.target_department}`}
+                                        {getDepartmentName(announcement.target_department)}
                                       </span>
                                     )}
                                     

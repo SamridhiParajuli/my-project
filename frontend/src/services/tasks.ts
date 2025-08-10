@@ -101,8 +101,6 @@ export const updateTask = async (id: number, taskData: TaskUpdate, user: User | 
     
     // Check if user has permission to edit this task
     const canEdit = 
-      // Admins can edit any task
-      user.role === 'admin' ||
       // Managers can edit tasks in their department
       (user.role === 'manager' && currentTask.department_id === user.department_id) ||
       // Leads can edit tasks in their department
@@ -128,7 +126,6 @@ export const updateTaskStatus = async (id: number, status: string, user: User | 
     const currentTask = await getTask(id);
     
     const canUpdateStatus = 
-      user.role === 'admin' ||
       (user.role === 'manager' && currentTask.department_id === user.department_id) ||
       (user.role === 'lead' && currentTask.department_id === user.department_id) ||
       currentTask.assigned_to === user.id;
@@ -152,7 +149,6 @@ export const deleteTask = async (id: number, user: User | null = null) => {
     const currentTask = await getTask(id);
     
     const canDelete = 
-      user.role === 'admin' ||
       (user.role === 'manager' && currentTask.department_id === user.department_id);
       
     if (!canDelete) {
