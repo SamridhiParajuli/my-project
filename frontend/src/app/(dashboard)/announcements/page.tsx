@@ -50,13 +50,14 @@ interface Announcement {
 }
 
 export default function AnnouncementsPage() {
-  const { user, isLoading, employee } = useAuth()
+  const { user, isLoading } = useAuth()
   
   // Determine if user is admin or manager
   const isAdmin = user?.role === 'admin'
   const isManager = user?.role === 'manager'
-  const department = user?.department_id || null
-  const employee_id = user?.employee_id
+  const department = user?.department_id || null;
+
+  
 
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [unreadAnnouncements, setUnreadAnnouncements] = useState<Announcement[]>([])
