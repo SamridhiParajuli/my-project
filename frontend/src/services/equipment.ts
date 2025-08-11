@@ -89,7 +89,7 @@ export interface RepairRequest {
   id: number;
   equipment_id: number;
   equipment_name?: string;
-  issue: string;
+  issue_description: string;
   reported_by: number;
   reported_by_name?: string;
   reported_date: string;
@@ -104,7 +104,7 @@ export interface RepairRequest {
 
 export interface RepairCreate {
   equipment_id: number;
-  issue: string;
+  issue_description: string;
   reported_by: number;
   urgency?: string;
   notes?: string;
