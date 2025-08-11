@@ -283,7 +283,7 @@ def create_temperature_log(
             "log_id": log_id,
             "monitoring_point_id": log_data.monitoring_point_id,
             "violation_type": violation_type,
-            "severity": "high" if abs(log_data.recorded_temp_fahrenheit - (monitoring_point["min_temp_fahrenheit"] + monitoring_point["max_temp_fahrenheit"]) / 2) > 10 else "medium",
+            "severity": "high" if abs(float(log_data.recorded_temp_fahrenheit) - (float(monitoring_point["min_temp_fahrenheit"]) + float(monitoring_point["max_temp_fahrenheit"])) / 2) > 10 else "medium",
             "status": "open"
         }
         
@@ -386,7 +386,7 @@ def update_temperature_violation(
     # Handle status change to resolved
     if "status" in update_values and update_values["status"] == "resolved" and existing_violation["status"] != "resolved":
         update_values["resolved_at"] = datetime.now()
-        update_values["resolved_by"] = current_user["id"]
+        update_values["resolved_by"] = current_user["employee_id"]
     
     # Update violation
     update_stmt = update(temperature_violations).where(temperature_violations.c.id == violation_id).values(**update_values)
@@ -422,7 +422,7 @@ def resolve_temperature_violation(
     update_values = {
         "status": "resolved",
         "resolved_at": datetime.now(),
-        "resolved_by": current_user["id"],
+        "resolved_by": current_user["employee_id"],
         "corrective_action": resolution_data.get("corrective_action", "Violation resolved")
     }
     
