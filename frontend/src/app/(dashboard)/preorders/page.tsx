@@ -281,7 +281,7 @@ export default function PreOrdersPage() {
       
       // Check if it's a valid number
       if (typeof numPrice === 'number' && !isNaN(numPrice)) {
-        return `$${numPrice.toFixed(2)}`;
+        return `${numPrice.toFixed(2)}`;
       }
       
       return 'N/A';
