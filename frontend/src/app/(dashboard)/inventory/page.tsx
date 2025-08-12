@@ -1,24 +1,40 @@
 // app/(dashboard)/inventory/page.tsx
-// TODO: issue with filtering system. Fix it
 'use client'
 
-import { useState } from 'react'
-import { motion, AnimatePresence, Variants } from 'framer-motion'
-import { Card, CardBody } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
-import { SearchBar } from '@/components/ui/SearchBar'
-import { useAuth } from '@/contexts/AuthContext'
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
+import { Card, CardBody } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
+import { SearchBar } from '@/components/ui/SearchBar';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   Package, 
   Plus, 
-  ChevronRight, 
-  Search, 
   Filter, 
   SortDesc, 
-  Calendar, 
   CheckCircle,
-  AlertCircle
-} from 'lucide-react'
+  RefreshCw
+} from 'lucide-react';
+import { getDepartments } from '@/services/departments';
+import { getEmployees } from '@/services/employees';
+import {
+  getInventoryRequests,
+  getInventoryRequest,
+  createInventoryRequest,
+  updateInventoryRequest,
+  deleteInventoryRequest,
+  updateInventoryRequestStatus,
+  getInventoryRequestUpdates,
+  addInventoryRequestUpdate,
+  InventoryRequest,
+  InventoryRequestCreate,
+  InventoryRequestUpdate,
+  InventoryRequestUpdateLog
+} from '@/services/inventory';
+import CreateInventoryRequestModal from '@/components/inventory/CreateInventoryRequestModal';
+import ViewInventoryRequestModal from '@/components/inventory/ViewInventoryRequestModal';
+import InventoryRequestCard from '@/components/inventory/InventoryRequestCard';
 
 // Animation variants
 const containerVariants: Variants = {
@@ -30,7 +46,7 @@ const containerVariants: Variants = {
       delayChildren: 0.1
     }
   }
-}
+};
 
 const itemVariants: Variants = {
   hidden: { y: 20, opacity: 0 },
@@ -39,21 +55,7 @@ const itemVariants: Variants = {
     opacity: 1,
     transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1.0] }
   }
-}
-
-const cardVariants: Variants = {
-  hidden: { y: 15, opacity: 0 },
-  visible: {
-    y: 0,
-    opacity: 1,
-    transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1.0] }
-  },
-  hover: {
-    y: -8,
-    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-    transition: { duration: 0.3 }
-  }
-}
+};
 
 const buttonVariants = {
   hover: { 
@@ -63,72 +65,194 @@ const buttonVariants = {
   tap: { 
     scale: 0.95 
   }
-}
+};
 
 export default function InventoryPage() {
-  const { isManager } = useAuth()
-  const [activeTab, setActiveTab] = useState('all')
-  const [searchTerm, setSearchTerm] = useState('')
+  const { user, isManager, isAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeDepartment, setActiveDepartment] = useState<number | null>(null);
+  const [sortField, setSortField] = useState('requested_date');
+  const [sortOrder, setSortOrder] = useState('desc');
   
-  // Demo inventory requests
-  const requests = [
-    { 
-      id: 1, 
-      title: "Dairy order shortage", 
-      description: "Missing 12 cases of organic milk from last order",
-      requestingDept: "Dairy",
-      fulfillingDept: "Receiving",
-      requestedBy: "Jane Smith",
-      priority: "high",
-      status: "pending",
-      dateNeeded: "2025-06-21"
-    },
-    { 
-      id: 2, 
-      title: "Additional produce needed", 
-      description: "Need extra strawberries for weekend sale",
-      requestingDept: "Produce",
-      fulfillingDept: "Receiving",
-      requestedBy: "Mike Johnson",
-      priority: "medium",
-      status: "in_progress",
-      dateNeeded: "2025-06-22"
-    },
-    { 
-      id: 3, 
-      title: "Special order - gluten free flour", 
-      description: "Customer ordered 10 bags of specialty flour",
-      requestingDept: "Grocery",
-      fulfillingDept: "Receiving",
-      requestedBy: "Sarah Williams",
-      priority: "low",
-      status: "approved",
-      dateNeeded: "2025-06-24"
-    },
-    { 
-      id: 4, 
-      title: "Bakery supplies restock", 
-      description: "Need decoration tools and ingredients for upcoming events",
-      requestingDept: "Bakery",
-      fulfillingDept: "Receiving",
-      requestedBy: "David Chen",
-      priority: "medium",
-      status: "completed",
-      dateNeeded: "2025-06-20"
-    },
-  ]
+  const [requests, setRequests] = useState<InventoryRequest[]>([]);
+  const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
+  const [employees, setEmployees] = useState<{ id: number; first_name: string; last_name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
-  // Filter requests based on active tab and search term
-  const filteredRequests = requests.filter(request => {
-    const matchesTab = activeTab === 'all' || request.status === activeTab;
-    const matchesSearch = searchTerm === '' || 
-      request.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.requestingDept.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.requestedBy.toLowerCase().includes(searchTerm.toLowerCase());
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<InventoryRequest | null>(null);
+  const [requestUpdates, setRequestUpdates] = useState<InventoryRequestUpdateLog[]>([]);
+  
+  // Fetch data on component mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch departments
+        const departmentsData = await getDepartments();
+        setDepartments(departmentsData.items || []);
+        
+        // Fetch employees instead of users
+        const employeesData = await getEmployees();
+        setEmployees(employeesData.items || []);
+        
+        // Fetch initial inventory requests
+        await fetchRequests();
+        
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        setError('Failed to load data. Please try again.');
+        setLoading(false);
+      }
+    };
     
-    return matchesTab && matchesSearch;
-  })
+    fetchData();
+  }, []);
+  
+  // Fetch requests based on filters
+  const fetchRequests = async () => {
+    try {
+      setLoading(true);
+      
+      const params: any = {
+        sort: sortField,
+        order: sortOrder
+      };
+      
+      // Add status filter if not 'all'
+      if (activeTab !== 'all') {
+        params.status = activeTab;
+      }
+      
+      // Add department filter if selected
+      if (activeDepartment) {
+        params.requesting_department = activeDepartment;
+      }
+      
+      // Add search term if provided
+      if (searchTerm) {
+        params.search = searchTerm;
+      }
+      
+      const response = await getInventoryRequests(params);
+      setRequests(response.items || []);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching requests:', error);
+      setError('Failed to load requests. Please try again.');
+      setLoading(false);
+    }
+  };
+  
+  // Apply filters when they change
+  useEffect(() => {
+    fetchRequests();
+  }, [activeTab, activeDepartment, sortField, sortOrder, searchTerm]);
+  
+  // Handle opening the view modal and fetching request details
+  const handleViewRequest = async (request: InventoryRequest) => {
+    setSelectedRequest(request);
+    
+    try {
+      // Fetch the latest updates for this request
+      const updates = await getInventoryRequestUpdates(request.id);
+      setRequestUpdates(updates || []);
+      
+      setShowViewModal(true);
+    } catch (error) {
+      console.error('Error fetching request updates:', error);
+    }
+  };
+  
+  // Create new request
+  const handleCreateRequest = async (data: InventoryRequestCreate) => {
+    try {
+      await createInventoryRequest(data);
+      setShowCreateModal(false);
+      fetchRequests(); // Refresh the list
+    } catch (error) {
+      console.error('Error creating request:', error);
+      alert('Failed to create request. Please try again.');
+    }
+  };
+  
+  // Update request
+  const handleUpdateRequest = async (id: number, data: InventoryRequestUpdate) => {
+    try {
+      await updateInventoryRequest(id, data);
+      
+      // Update the selected request in state
+      if (selectedRequest && selectedRequest.id === id) {
+        setSelectedRequest(prev => prev ? { ...prev, ...data } : null);
+      }
+      
+      fetchRequests(); // Refresh the list
+    } catch (error) {
+      console.error('Error updating request:', error);
+      alert('Failed to update request. Please try again.');
+    }
+  };
+  
+  // Delete request
+  const handleDeleteRequest = async (id: number) => {
+    try {
+      await deleteInventoryRequest(id);
+      setShowViewModal(false);
+      fetchRequests(); // Refresh the list
+    } catch (error) {
+      console.error('Error deleting request:', error);
+      alert('Failed to delete request. Please try again.');
+    }
+  };
+  
+  // Update request status
+  const handleUpdateStatus = async (id: number, status: string) => {
+    try {
+      await updateInventoryRequestStatus(id, status);
+      
+      // Update the selected request in state
+      if (selectedRequest && selectedRequest.id === id) {
+        setSelectedRequest(prev => prev ? { ...prev, status } : null);
+      }
+      
+      // Refresh updates after status change
+      const updates = await getInventoryRequestUpdates(id);
+      setRequestUpdates(updates || []);
+      
+      fetchRequests(); // Refresh the list
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert('Failed to update status. Please try again.');
+    }
+  };
+  
+  // Add update to request
+  const handleAddUpdate = async (id: number, data: { notes?: string }) => {
+    try {
+      await addInventoryRequestUpdate(id, data);
+      
+      // Refresh updates
+      const updates = await getInventoryRequestUpdates(id);
+      setRequestUpdates(updates || []);
+    } catch (error) {
+      console.error('Error adding update:', error);
+      alert('Failed to add update. Please try again.');
+    }
+  };
+  
+  // Toggle sort order
+  const handleToggleSort = () => {
+    setSortOrder(prevOrder => prevOrder === 'asc' ? 'desc' : 'asc');
+  };
+  
+  if (loading && requests.length === 0) {
+    return <LoadingSpinner text="Loading inventory requests..." />;
+  }
   
   return (
     <motion.div 
@@ -154,7 +278,7 @@ export default function InventoryPage() {
                 </div>
               </div>
               
-              {isManager && (
+              {(isManager || isAdmin) && (
                 <motion.div
                   variants={buttonVariants}
                   whileHover="hover"
@@ -162,6 +286,7 @@ export default function InventoryPage() {
                 >
                   <Button
                     className="bg-[#f7eccf] text-[#1C1C1C] hover:bg-[#e9d8ae] flex items-center gap-2 rounded-full shadow-md px-5 py-2.5"
+                    onClick={() => setShowCreateModal(true)}
                   >
                     <Plus size={18} />
                     <span>New Request</span>
@@ -200,7 +325,9 @@ export default function InventoryPage() {
                         style={{ zIndex: -1 }}
                       />
                     )}
-                    {tab.charAt(0).toUpperCase() + tab.slice(1).replace('_', ' ')}
+                    {tab === 'all' ? 'All' : 
+                     tab === 'in_progress' ? 'In Progress' : 
+                     tab.charAt(0).toUpperCase() + tab.slice(1)}
                   </motion.button>
                 ))}
               </div>
@@ -218,53 +345,95 @@ export default function InventoryPage() {
             </div>
 
             {/* Filter Options */}
-            <div className="flex items-center mt-4 pt-4 border-t border-[#f7eccf]/10">
-              <span className="text-sm text-[#f7eccf]/70 mr-3">Filter by:</span>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { value: 'all', label: 'All Departments' },
-                  { value: 'dairy', label: 'Dairy' },
-                  { value: 'produce', label: 'Produce' },
-                  { value: 'bakery', label: 'Bakery' },
-                  { value: 'grocery', label: 'Grocery' }
-                ].map(option => (
+            <div className="flex flex-wrap items-center mt-4 pt-4 border-t border-[#f7eccf]/10">
+              <span className="text-sm text-[#f7eccf]/70 mr-3 mb-2">Filter by:</span>
+              <div className="flex flex-wrap gap-2 flex-1 mb-2">
+                <motion.button
+                  key="all-depts"
+                  className={`px-3 py-1.5 text-xs rounded-full transition-all ${
+                    activeDepartment === null
+                      ? 'bg-[#f7eccf] text-[#1C1C1C]'
+                      : 'bg-[#f7eccf]/10 text-[#f7eccf]/70 hover:bg-[#f7eccf]/20'
+                  }`}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setActiveDepartment(null)}
+                >
+                  All Departments
+                </motion.button>
+                {departments.map(dept => (
                   <motion.button
-                    key={option.value}
+                    key={dept.id}
                     className={`px-3 py-1.5 text-xs rounded-full transition-all ${
-                      option.value === 'all'
+                      activeDepartment === dept.id
                         ? 'bg-[#f7eccf] text-[#1C1C1C]'
                         : 'bg-[#f7eccf]/10 text-[#f7eccf]/70 hover:bg-[#f7eccf]/20'
                     }`}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
+                    onClick={() => setActiveDepartment(dept.id)}
                   >
-                    {option.label}
+                    {dept.name}
                   </motion.button>
                 ))}
               </div>
-              <motion.button
-                className="p-2 ml-2 bg-[#f7eccf]/10 rounded-full text-[#f7eccf] hover:bg-[#f7eccf]/20 transition-all"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                title="Sort by date"
-              >
-                <SortDesc size={16} />
-              </motion.button>
-              <motion.button
-                className="p-2 ml-1 bg-[#f7eccf]/10 rounded-full text-[#f7eccf] hover:bg-[#f7eccf]/20 transition-all"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                title="Advanced filters"
-              >
-                <Filter size={16} />
-              </motion.button>
+              <div className="flex gap-2">
+                <motion.button
+                  className="p-2 bg-[#f7eccf]/10 rounded-full text-[#f7eccf] hover:bg-[#f7eccf]/20 transition-all"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  title={`Sort by date (${sortOrder === 'asc' ? 'Oldest first' : 'Newest first'})`}
+                  onClick={handleToggleSort}
+                >
+                  <SortDesc size={16} />
+                </motion.button>
+                <motion.button
+                  className="p-2 bg-[#f7eccf]/10 rounded-full text-[#f7eccf] hover:bg-[#f7eccf]/20 transition-all"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  title="Refresh requests"
+                  onClick={() => fetchRequests()}
+                >
+                  <RefreshCw size={16} />
+                </motion.button>
+              </div>
             </div>
           </CardBody>
         </Card>
       </motion.div>
 
+      {/* Error Message */}
+      {error && (
+        <motion.div 
+          variants={itemVariants}
+          className="bg-red-500/10 text-red-500 p-4 rounded-3xl shadow-lg text-center"
+        >
+          {error}
+          <Button
+            variant="outline"
+            className="ml-4 border-red-500/30 text-red-500 hover:bg-red-500/10"
+            onClick={() => fetchRequests()}
+          >
+            Try Again
+          </Button>
+        </motion.div>
+      )}
+
+      {/* Loading Indicator */}
+      {loading && requests.length > 0 && (
+        <motion.div 
+          variants={itemVariants}
+          className="flex justify-center py-4"
+        >
+          <div className="flex items-center gap-2 text-[#f7eccf]/70">
+            <RefreshCw size={18} className="animate-spin" />
+            <span>Updating requests...</span>
+          </div>
+        </motion.div>
+      )}
+
       {/* Requests List */}
-      {filteredRequests.length === 0 ? (
+      {!loading && requests.length === 0 ? (
         <motion.div 
           variants={itemVariants}
           className="bg-[#1C1C1C] rounded-3xl shadow-xl py-16 px-6 text-center"
@@ -280,108 +449,55 @@ export default function InventoryPage() {
                 ? `No ${activeTab.replace('_', ' ')} requests found.`
                 : "No inventory requests have been created yet."}
           </p>
+          {(isManager || isAdmin) && (
+            <Button
+              className="mt-6 bg-[#f7eccf] text-[#1C1C1C] hover:bg-[#e9d8ae] rounded-xl"
+              onClick={() => setShowCreateModal(true)}
+            >
+              Create New Request
+            </Button>
+          )}
         </motion.div>
       ) : (
         <motion.div variants={containerVariants} className="space-y-4">
-          {filteredRequests.map(request => (
-            <motion.div 
-              key={request.id} 
-              variants={cardVariants}
-              whileHover="hover"
-              className="relative"
-            >
-              <Card className={`border-none bg-[#1C1C1C] overflow-hidden rounded-3xl shadow-xl ${
-                request.priority === 'high' ? 'border-l-4 border-red-500' : ''
-              }`}>
-                <CardBody className="p-6">
-                  <div className="flex flex-col md:flex-row justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center flex-wrap gap-2 mb-3">
-                        <h3 className="text-lg font-medium text-[#f7eccf]">{request.title}</h3>
-                        <span className={`inline-block px-3 py-1 text-xs rounded-full ${
-                          request.priority === 'high' 
-                            ? 'bg-red-500/20 text-red-500' 
-                            : request.priority === 'medium'
-                            ? 'bg-amber-500/20 text-amber-500'
-                            : 'bg-green-500/20 text-green-500'
-                        }`}>
-                          {request.priority === 'high' ? 'High Priority' : 
-                           request.priority === 'medium' ? 'Medium Priority' : 'Low Priority'}
-                        </span>
-                        <span className={`inline-block px-3 py-1 text-xs rounded-full ${
-                          request.status === 'completed' 
-                            ? 'bg-green-500/20 text-green-500' 
-                            : request.status === 'approved'
-                            ? 'bg-blue-500/20 text-blue-500'
-                            : request.status === 'in_progress'
-                            ? 'bg-amber-500/20 text-amber-500'
-                            : 'bg-[#f7eccf]/20 text-[#f7eccf]/90'
-                        }`}>
-                          {request.status === 'in_progress' ? 'In Progress' : 
-                           request.status.charAt(0).toUpperCase() + request.status.slice(1)}
-                        </span>
-                      </div>
-                      
-                      <p className="text-[#f7eccf]/80 mb-4">{request.description}</p>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-y-2 text-sm text-[#f7eccf]/60">
-                        <div className="flex items-center">
-                          <span className="mr-2 w-3 h-3 rounded-full bg-[#f7eccf]/20 flex-shrink-0"></span>
-                          <span>From: {request.requestingDept}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <span className="mr-2 w-3 h-3 rounded-full bg-[#f7eccf]/20 flex-shrink-0"></span>
-                          <span>To: {request.fulfillingDept}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <span className="mr-2 w-3 h-3 rounded-full bg-[#f7eccf]/20 flex-shrink-0"></span>
-                          <span>Requested by: {request.requestedBy}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Calendar size={14} className="mr-2 text-[#f7eccf]/40" />
-                          <span>Needed by: {request.dateNeeded}</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-col mt-4 md:mt-0 md:ml-6 md:min-w-[140px] justify-end gap-2">
-                      {request.status !== 'completed' && (
-                        <motion.div
-                          variants={buttonVariants}
-                          whileHover="hover"
-                          whileTap="tap"
-                        >
-                          <Button
-                            className="w-full bg-blue-500 hover:bg-blue-600 text-white text-xs px-3 py-2 rounded-xl flex items-center justify-center gap-1"
-                            size="sm"
-                          >
-                            Update Status
-                          </Button>
-                        </motion.div>
-                      )}
-                      
-                      <motion.div
-                        variants={buttonVariants}
-                        whileHover="hover"
-                        whileTap="tap"
-                      >
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full border-[#f7eccf]/30 text-[#f7eccf] hover:bg-[#f7eccf]/10 rounded-xl flex items-center justify-center gap-1"
-                        >
-                          View Details
-                          <ChevronRight size={14} />
-                        </Button>
-                      </motion.div>
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
-            </motion.div>
-          ))}
+          <AnimatePresence>
+            {requests.map(request => (
+              <InventoryRequestCard
+                key={request.id}
+                request={request}
+                onClick={() => handleViewRequest(request)}
+                departments={departments}
+                employees={employees}
+              />
+            ))}
+          </AnimatePresence>
         </motion.div>
       )}
+
+      {/* Create Request Modal */}
+      <CreateInventoryRequestModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSubmit={handleCreateRequest}
+        departments={departments}
+        employees={employees}
+        currentUser={user}
+      />
+
+      {/* View/Edit Request Modal */}
+      <ViewInventoryRequestModal
+        isOpen={showViewModal}
+        onClose={() => setShowViewModal(false)}
+        request={selectedRequest}
+        updateRequest={handleUpdateRequest}
+        deleteRequest={handleDeleteRequest}
+        updateStatus={handleUpdateStatus}
+        departments={departments}
+        employees={employees}
+        currentUser={user}
+        requestUpdates={requestUpdates}
+        addUpdate={handleAddUpdate}
+      />
     </motion.div>
-  )
+  );
 }
