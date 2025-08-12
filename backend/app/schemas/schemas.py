@@ -361,14 +361,15 @@ class InventoryRequestWithNames(InventoryRequest):
     fulfilling_department_name: Optional[str] = None
     requested_by_name: Optional[str] = None
 
-# ✅ Added missing class:
+
 class InventoryRequestUpdateLog(BaseModel):
     id: int
     request_id: int
-    previous_status: Optional[str] = None
+    updated_by: int  
+    old_status: Optional[str] = None  
     new_status: str
-    changed_by: int
-    timestamp: datetime
+    update_message: Optional[str] = None  
+    updated_at: datetime  
 
     class Config:
         from_attributes = True

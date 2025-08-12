@@ -117,7 +117,7 @@ def create_inventory_request(
         "description": inventory_request.description,
         "requesting_department": inventory_request.requesting_department,
         "fulfilling_department": inventory_request.fulfilling_department,
-        "requested_by": inventory_request.requested_by or current_user["id"],
+        "requested_by": inventory_request.requested_by or current_user["employee_id"],
         "assigned_to": inventory_request.assigned_to,
         "item_category": inventory_request.item_category,
         "quantity_requested": inventory_request.quantity_requested,
@@ -162,7 +162,7 @@ def update_inventory_request(
     if "status" in update_values and update_values["status"] != existing_request["status"]:
         update_log = {
             "request_id": request_id,
-            "updated_by": current_user["id"],
+            "updated_by": current_user["employee_id"],
             "old_status": existing_request["status"],
             "new_status": update_values["status"],
             "update_message": f"Status changed from {existing_request['status']} to {update_values['status']}"
@@ -209,7 +209,7 @@ def update_inventory_request_status(
     # Create status update log
     update_log = {
         "request_id": request_id,
-        "updated_by": current_user["id"],
+        "updated_by": current_user["employee_id"],
         "old_status": existing_request["status"],
         "new_status": new_status,
         "update_message": status_update.get("message", f"Status changed to {new_status}")
@@ -270,7 +270,7 @@ def add_inventory_request_update(
     # Create update log
     new_update = {
         "request_id": request_id,
-        "updated_by": current_user["id"],
+        "updated_by": current_user["employee_id"],
         "old_status": existing_request["status"],
         "new_status": update_data.get("new_status", existing_request["status"]),
         "update_message": update_data.get("message", "Status updated")
@@ -307,9 +307,17 @@ def delete_inventory_request(
     if existing_request is None:
         raise_api_error(404, "Inventory request not found")
     
-    # Delete request
-    delete_stmt = delete(inventory_requests).where(inventory_requests.c.id == request_id)
-    db.execute(delete_stmt)
-    db.commit()
-    
-    return {"message": "Inventory request deleted successfully"}
+    try:
+        # First, delete any related update records
+        delete_updates_stmt = delete(inventory_request_updates).where(inventory_request_updates.c.request_id == request_id)
+        db.execute(delete_updates_stmt)
+        
+        # Then delete the request itself
+        delete_stmt = delete(inventory_requests).where(inventory_requests.c.id == request_id)
+        db.execute(delete_stmt)
+        
+        db.commit()
+        return {"message": "Inventory request deleted successfully"}
+    except Exception as e:
+        db.rollback()
+        raise_api_error(500, f"Error deleting inventory request: {str(e)}")

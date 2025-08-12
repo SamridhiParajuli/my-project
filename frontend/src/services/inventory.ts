@@ -49,8 +49,8 @@ export interface InventoryRequestUpdateLog {
   request_id: number;
   previous_status?: string | null;
   new_status: string;
-  changed_by: number;  // This is employee_id
-  timestamp: string;
+  updated_by: number;  // This is employee_id
+  updated_at: string;
 }
 
 export interface InventoryRequestsParams {

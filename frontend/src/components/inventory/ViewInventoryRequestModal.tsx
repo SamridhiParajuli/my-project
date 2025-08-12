@@ -458,7 +458,7 @@ const ViewInventoryRequestModal: React.FC<ViewInventoryRequestModalProps> = ({
                             <div className="flex-1">
                               <div className="flex justify-between">
                                 <div className="font-medium text-[#f7eccf]">
-                                  {getEmployeeName(update.changed_by)}
+                                  {getEmployeeName(update.updated_by)}
                                   {update.previous_status && (
                                     <span className="font-normal text-[#f7eccf]/70">
                                       {' '}changed status from{' '}
@@ -469,7 +469,7 @@ const ViewInventoryRequestModal: React.FC<ViewInventoryRequestModalProps> = ({
                                   )}
                                 </div>
                                 <div className="text-xs text-[#f7eccf]/50">
-                                  {new Date(update.timestamp).toLocaleString()}
+                                  {new Date(update.updated_at).toLocaleString()}
                                 </div>
                               </div>
                               {/* This would include notes from the update if available */}
@@ -516,7 +516,7 @@ const ViewInventoryRequestModal: React.FC<ViewInventoryRequestModalProps> = ({
                         </div>
                         <div>
                           <div className="text-xs text-[#f7eccf]/50 mb-1">
-                            {new Date(update.timestamp).toLocaleString()}
+                            {new Date(update.updated_at).toLocaleString()}
                           </div>
                           <div className="text-sm font-medium text-[#f7eccf]">
                             Status changed to{' '}
@@ -533,7 +533,7 @@ const ViewInventoryRequestModal: React.FC<ViewInventoryRequestModalProps> = ({
                             </span>
                           </div>
                           <div className="text-xs text-[#f7eccf]/70 mt-1">
-                            by {getEmployeeName(update.changed_by)}
+                            by {getEmployeeName(update.updated_by)}
                           </div>
                         </div>
                       </div>
