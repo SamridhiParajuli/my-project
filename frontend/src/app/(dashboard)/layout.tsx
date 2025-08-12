@@ -63,7 +63,7 @@ export default function DashboardLayout({
     "Communication": false,
     "Management": false
   });
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const router = useRouter();
   const [currentPath, setCurrentPath] = useState("");
   
@@ -287,8 +287,6 @@ export default function DashboardLayout({
                 <motion.button
                   className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[#f7eccf]/80 hover:bg-[#f7eccf]/10 text-sm font-medium"
                   onClick={() => {
-                    // Handle logout - this should call the logout function from AuthContext
-                    const { logout } = useAuth();
                     logout();
                     router.push('/login');
                   }}
