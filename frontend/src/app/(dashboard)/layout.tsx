@@ -342,14 +342,7 @@ export default function DashboardLayout({
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
               </motion.button>
               
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Link href="/settings" className="p-2 rounded-full hover:bg-[#333333] transition-colors">
-                  <Settings size={20} className="text-[#f7eccf]" />
-                </Link>
-              </motion.div>
+             
               
               <motion.div 
                 className="ml-2 hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#333333] hover:bg-[#444444] cursor-pointer"
