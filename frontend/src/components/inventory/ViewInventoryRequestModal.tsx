@@ -1,10 +1,10 @@
 // src/components/inventory/ViewInventoryRequestModal.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { InventoryRequest, InventoryRequestUpdate, InventoryRequestUpdateLog } from '@/services/inventory';
 import { User } from '@/contexts/AuthContext';
-import { X, Clock, Calendar, CheckCircle, AlertCircle, MessageCircle } from 'lucide-react';
+import { X, Clock, Calendar, CheckCircle, AlertCircle, MessageCircle, ChevronDown } from 'lucide-react';
 
 interface ViewInventoryRequestModalProps {
   isOpen: boolean;
@@ -19,6 +19,126 @@ interface ViewInventoryRequestModalProps {
   requestUpdates: InventoryRequestUpdateLog[];
   addUpdate: (id: number, data: { notes?: string }) => Promise<void>;
 }
+
+interface CustomDropdownProps {
+  name: string;
+  value: string | number | null;
+  onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  options: { value: string | number; label: string }[];
+  placeholder?: string;
+  className?: string;
+}
+
+const CustomDropdown: React.FC<CustomDropdownProps> = ({
+  name, 
+  value, 
+  onChange, 
+  options, 
+  placeholder = "Select option",
+  className = ""
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [displayValue, setDisplayValue] = useState<string>(placeholder);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Update displayed value when component value changes
+  useEffect(() => {
+    const selectedOption = options.find(option => option.value.toString() === value?.toString());
+    setDisplayValue(selectedOption ? selectedOption.label : placeholder);
+  }, [value, options, placeholder]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+ const handleSelect = (optionValue: string | number) => {
+  const syntheticEvent = {
+    target: {
+      name,
+      value: optionValue,
+      type: 'select',
+    },
+  } as unknown as React.ChangeEvent<HTMLSelectElement>;
+  
+  onChange(syntheticEvent);
+  setIsOpen(false);
+};
+
+  return (
+    <div ref={dropdownRef} className={`relative ${className}`}>
+      <motion.button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-3 py-2 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:outline-none focus:ring-1 focus:ring-[#f7eccf]/50 flex justify-between items-center"
+        whileHover={{ backgroundColor: 'rgba(247, 236, 207, 0.08)' }}
+        whileTap={{ scale: 0.995 }}
+      >
+        <span className={value ? 'text-[#f7eccf]' : 'text-[#f7eccf]/50'}>
+          {displayValue}
+        </span>
+        <ChevronDown 
+          size={16} 
+          className={`transition-transform duration-200 text-[#f7eccf]/60 ${isOpen ? 'rotate-180' : ''}`} 
+        />
+      </motion.button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.15 }}
+            className="absolute z-50 w-full mt-1 bg-[#252525] border border-[#f7eccf]/20 rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto"
+          >
+            {options.map((option) => (
+              <motion.button
+                key={option.value}
+                type="button"
+                onClick={() => handleSelect(option.value)}
+                className={`w-full text-left px-3 py-2 hover:bg-[#f7eccf]/10 transition-colors ${
+                  option.value.toString() === value?.toString() 
+                    ? 'bg-[#f7eccf]/15 text-[#f7eccf]' 
+                    : 'text-[#f7eccf]/80'
+                }`}
+                whileHover={{ backgroundColor: 'rgba(247, 236, 207, 0.15)' }}
+                whileTap={{ backgroundColor: 'rgba(247, 236, 207, 0.2)' }}
+              >
+                {option.label}
+              </motion.button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Hidden select element for form submission */}
+      <select 
+        name={name} 
+        value={value || ''} 
+        onChange={onChange} 
+        className="sr-only" 
+        aria-hidden="true"
+      >
+        <option value="">{placeholder}</option>
+        {options.map(option => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+};
 
 const ViewInventoryRequestModal: React.FC<ViewInventoryRequestModalProps> = ({
   isOpen,
@@ -202,35 +322,34 @@ const ViewInventoryRequestModal: React.FC<ViewInventoryRequestModalProps> = ({
                         <label className="block text-sm font-medium text-[#f7eccf]/80">
                           Priority
                         </label>
-                        <select
+                        <CustomDropdown
                           name="priority"
                           value={formData.priority || ''}
                           onChange={handleChange}
-                          className="w-full px-3 py-2 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:outline-none focus:ring-1 focus:ring-[#f7eccf]/50"
-                        >
-                          <option value="low">Low</option>
-                          <option value="medium">Medium</option>
-                          <option value="high">High</option>
-                        </select>
+                          options={[
+                            { value: 'low', label: 'Low' },
+                            { value: 'medium', label: 'Medium' },
+                            { value: 'high', label: 'High' }
+                          ]}
+                        />
                       </div>
 
                       <div className="space-y-2">
                         <label className="block text-sm font-medium text-[#f7eccf]/80">
                           Assign To
                         </label>
-                        <select
+                        <CustomDropdown
                           name="assigned_to"
                           value={formData.assigned_to || ''}
                           onChange={handleChange}
-                          className="w-full px-3 py-2 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:outline-none focus:ring-1 focus:ring-[#f7eccf]/50"
-                        >
-                          <option value="">Unassigned</option>
-                          {employees.map(emp => (
-                            <option key={emp.id} value={emp.id}>
-                              {`${emp.first_name} ${emp.last_name}`}
-                            </option>
-                          ))}
-                        </select>
+                          options={[
+                            { value: '', label: 'Unassigned' },
+                            ...employees.map(emp => ({ 
+                              value: emp.id, 
+                              label: `${emp.first_name} ${emp.last_name}` 
+                            }))
+                          ]}
+                        />
                       </div>
                     </div>
 
@@ -387,25 +506,29 @@ const ViewInventoryRequestModal: React.FC<ViewInventoryRequestModalProps> = ({
                         
                         {request.status !== 'completed' && (
                           <div className="relative group">
-                            <Button
-                              className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl"
+                            <motion.button
+                              className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl px-4 py-2 flex items-center gap-2"
                               disabled={loading}
+                              whileHover={{ backgroundColor: 'rgba(59, 130, 246, 0.9)' }}
+                              whileTap={{ scale: 0.97 }}
                             >
                               Update Status
-                            </Button>
+                              <ChevronDown size={14} className="transition-transform duration-200 group-hover:rotate-180" />
+                            </motion.button>
                             
                             <div className="absolute right-0 mt-2 w-48 bg-[#1C1C1C] border border-[#f7eccf]/20 rounded-xl shadow-lg py-1 z-10 hidden group-hover:block">
                               {['pending', 'in_progress', 'approved', 'completed'].map(status => (
                                 request.status !== status && (
-                                  <button
+                                  <motion.button
                                     key={status}
                                     onClick={() => handleStatusChange(status)}
                                     className="block w-full text-left px-4 py-2 text-sm text-[#f7eccf] hover:bg-[#f7eccf]/10"
+                                    whileHover={{ backgroundColor: 'rgba(247, 236, 207, 0.15)' }}
                                   >
                                     {status === 'in_progress' 
                                       ? 'Mark as In Progress' 
                                       : `Mark as ${status.charAt(0).toUpperCase() + status.slice(1)}`}
-                                  </button>
+                                  </motion.button>
                                 )
                               ))}
                             </div>

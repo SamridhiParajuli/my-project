@@ -1,10 +1,10 @@
 // src/components/inventory/CreateInventoryRequestModal.tsx
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { InventoryRequestCreate } from '@/services/inventory';
 import { User } from '@/contexts/AuthContext';
-import { X } from 'lucide-react';
+import { X, ChevronDown } from 'lucide-react';
 
 interface CreateInventoryRequestModalProps {
   isOpen: boolean;
@@ -14,6 +14,126 @@ interface CreateInventoryRequestModalProps {
   employees: { id: number; first_name: string; last_name: string }[];
   currentUser: User | null;
 }
+
+interface CustomDropdownProps {
+  name: string;
+  value: string | number | null;
+  onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  options: { value: string | number; label: string }[];
+  placeholder?: string;
+  className?: string;
+}
+
+const CustomDropdown: React.FC<CustomDropdownProps> = ({
+  name, 
+  value, 
+  onChange, 
+  options, 
+  placeholder = "Select option",
+  className = ""
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [displayValue, setDisplayValue] = useState<string>(placeholder);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Update displayed value when component value changes
+  useEffect(() => {
+    const selectedOption = options.find(option => option.value.toString() === value?.toString());
+    setDisplayValue(selectedOption ? selectedOption.label : placeholder);
+  }, [value, options, placeholder]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+ const handleSelect = (optionValue: string | number) => {
+  const syntheticEvent = {
+    target: {
+      name,
+      value: optionValue,
+      type: 'select',
+    },
+  } as unknown as React.ChangeEvent<HTMLSelectElement>;
+  
+  onChange(syntheticEvent);
+  setIsOpen(false);
+};
+
+  return (
+    <div ref={dropdownRef} className={`relative ${className}`}>
+      <motion.button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-3 py-2 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:outline-none focus:ring-1 focus:ring-[#f7eccf]/50 flex justify-between items-center"
+        whileHover={{ backgroundColor: 'rgba(247, 236, 207, 0.08)' }}
+        whileTap={{ scale: 0.995 }}
+      >
+        <span className={value ? 'text-[#f7eccf]' : 'text-[#f7eccf]/50'}>
+          {displayValue}
+        </span>
+        <ChevronDown 
+          size={16} 
+          className={`transition-transform duration-200 text-[#f7eccf]/60 ${isOpen ? 'rotate-180' : ''}`} 
+        />
+      </motion.button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.15 }}
+            className="absolute z-50 w-full mt-1 bg-[#252525] border border-[#f7eccf]/20 rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto"
+          >
+            {options.map((option) => (
+              <motion.button
+                key={option.value}
+                type="button"
+                onClick={() => handleSelect(option.value)}
+                className={`w-full text-left px-3 py-2 hover:bg-[#f7eccf]/10 transition-colors ${
+                  option.value.toString() === value?.toString() 
+                    ? 'bg-[#f7eccf]/15 text-[#f7eccf]' 
+                    : 'text-[#f7eccf]/80'
+                }`}
+                whileHover={{ backgroundColor: 'rgba(247, 236, 207, 0.15)' }}
+                whileTap={{ backgroundColor: 'rgba(247, 236, 207, 0.2)' }}
+              >
+                {option.label}
+              </motion.button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Hidden select element for form submission */}
+      <select 
+        name={name} 
+        value={value || ''} 
+        onChange={onChange} 
+        className="sr-only" 
+        aria-hidden="true"
+      >
+        <option value="">{placeholder}</option>
+        {options.map(option => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+};
 
 const CreateInventoryRequestModal: React.FC<CreateInventoryRequestModalProps> = ({
   isOpen,
@@ -124,34 +244,26 @@ const CreateInventoryRequestModal: React.FC<CreateInventoryRequestModalProps> = 
                   <label className="block text-sm font-medium text-[#f7eccf]/80">
                     Requesting Department
                   </label>
-                  <select
+                  <CustomDropdown
                     name="requesting_department"
                     value={formData.requesting_department || ''}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:outline-none focus:ring-1 focus:ring-[#f7eccf]/50"
-                  >
-                    <option value="">Select Department</option>
-                    {departments.map(dept => (
-                      <option key={dept.id} value={dept.id}>{dept.name}</option>
-                    ))}
-                  </select>
+                    options={departments.map(dept => ({ value: dept.id, label: dept.name }))}
+                    placeholder="Select Department"
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-[#f7eccf]/80">
                     Fulfilling Department
                   </label>
-                  <select
+                  <CustomDropdown
                     name="fulfilling_department"
                     value={formData.fulfilling_department || ''}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:outline-none focus:ring-1 focus:ring-[#f7eccf]/50"
-                  >
-                    <option value="">Select Department</option>
-                    {departments.map(dept => (
-                      <option key={dept.id} value={dept.id}>{dept.name}</option>
-                    ))}
-                  </select>
+                    options={departments.map(dept => ({ value: dept.id, label: dept.name }))}
+                    placeholder="Select Department"
+                  />
                 </div>
               </div>
 
@@ -173,16 +285,16 @@ const CreateInventoryRequestModal: React.FC<CreateInventoryRequestModalProps> = 
                   <label className="block text-sm font-medium text-[#f7eccf]/80">
                     Priority
                   </label>
-                  <select
+                  <CustomDropdown
                     name="priority"
-                    value={formData.priority}
+                    value={formData.priority as string}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:outline-none focus:ring-1 focus:ring-[#f7eccf]/50"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
+                    options={[
+                      { value: 'low', label: 'Low' },
+                      { value: 'medium', label: 'Medium' },
+                      { value: 'high', label: 'High' }
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -204,17 +316,18 @@ const CreateInventoryRequestModal: React.FC<CreateInventoryRequestModalProps> = 
                   <label className="block text-sm font-medium text-[#f7eccf]/80">
                     Assign To
                   </label>
-                  <select
+                  <CustomDropdown
                     name="assigned_to"
                     value={formData.assigned_to || ''}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 bg-[#f7eccf]/5 border border-[#f7eccf]/20 rounded-xl text-[#f7eccf] focus:outline-none focus:ring-1 focus:ring-[#f7eccf]/50"
-                  >
-                    <option value="">Unassigned</option>
-                    {employees.map(emp => (
-                      <option key={emp.id} value={emp.id}>{`${emp.first_name} ${emp.last_name}`}</option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: '', label: 'Unassigned' },
+                      ...employees.map(emp => ({ 
+                        value: emp.id, 
+                        label: `${emp.first_name} ${emp.last_name}` 
+                      }))
+                    ]}
+                  />
                 </div>
               </div>
 
