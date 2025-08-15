@@ -23,10 +23,7 @@ app = FastAPI(
 )
 
 # Configure CORS
-origins = [
-    "http://localhost:3000",  # For local Next.js development
-    "http://localhost:8000",  # For local FastAPI frontend if needed
-    # Add your production domains when you deploy
+origins = ["*"   # Add your production domains when you deploy
 ]
 
 app.add_middleware(
