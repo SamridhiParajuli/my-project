@@ -7,7 +7,15 @@ interface CustomAxiosInstance extends AxiosInstance {
 }
 
 // Set the API URL based on environment variables or fallback to localhost
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+let API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+// Force HTTPS for production domains (but keep HTTP for localhost development)
+if (API_URL.includes('railway.app') || API_URL.includes('summerhill-backend')) {
+  // Replace http:// with https:// if present
+  API_URL = API_URL.replace('http://', 'https://');
+}
+
+console.log('API URL being used:', API_URL); // Debugging log
 
 const axiosInstance = axios.create({
   baseURL: API_URL,
@@ -32,6 +40,8 @@ axiosInstance.interceptors.request.use(
     // Log requests in development (useful for debugging)
     if (process.env.NODE_ENV !== 'production') {
       console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`)
+      // Log the full URL including base URL for debugging
+      console.log(`Full URL: ${config.baseURL}${config.url}`)
     }
     
     return config
@@ -55,6 +65,7 @@ axiosInstance.interceptors.response.use(
     // Log detailed error information
     console.error('API Error:', {
       url: error.config?.url,
+      baseURL: error.config?.baseURL,
       method: error.config?.method,
       status: error.response?.status,
       statusText: error.response?.statusText,
