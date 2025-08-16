@@ -28,7 +28,7 @@ origins = ["*"   # Add your production domains when you deploy
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
