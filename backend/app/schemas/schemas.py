@@ -214,8 +214,8 @@ class TaskUpdate(BaseModel):
 
 class Task(TaskBase):
     id: int
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime]
+    updated_at: Optional[datetime]
     completed_at: Optional[datetime] = None
     is_completed: bool = False
 

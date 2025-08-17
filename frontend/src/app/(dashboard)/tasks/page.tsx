@@ -888,24 +888,21 @@ export default function TasksPage() {
                       )}
                       
                       <motion.div
-                        variants={buttonVariants}
-                        whileHover="hover"
-                        whileTap="tap"
-                        className="mt-2"
-                      >
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full border-[#f7eccf]/30 text-[#f7eccf] hover:bg-[#f7eccf]/10 rounded-xl flex items-center justify-center gap-1"
-                          onClick={() => {
-                            // This is a placeholder for task details view
-                            console.log('View task details:', task.id);
-                          }}
-                        >
-                          <ExternalLink size={14} />
-                          View Details
-                        </Button>
-                      </motion.div>
+  variants={buttonVariants}
+  whileHover="hover"
+  whileTap="tap"
+  className="mt-2"
+>
+  <Button
+    variant="outline"
+    size="sm"
+    className="w-full border-[#f7eccf]/30 text-[#f7eccf] hover:bg-[#f7eccf]/10 rounded-xl flex items-center justify-center gap-1"
+    onClick={() => router.push(`/tasks/${task.id}`)}
+  >
+    <ExternalLink size={14} />
+    View Details
+  </Button>
+</motion.div>
                     </div>
                   </div>
                 </CardBody>

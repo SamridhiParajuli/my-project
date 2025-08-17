@@ -2,12 +2,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/services/api'
 import Button from '@/components/ui/Button'
 import { Task } from '@/types'
-
-
 
 interface TasksListProps {
   fallbackData?: Task[];
@@ -24,6 +23,7 @@ export default function TasksList({
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const { user, isAdmin, isManager } = useAuth()
+  const router = useRouter()
   
   useEffect(() => {
     const fetchTasks = async (): Promise<void> => {
@@ -152,11 +152,7 @@ export default function TasksList({
               <Button 
                 size="sm"
                 variant="secondary"
-                onClick={() => {
-                  if (typeof window !== 'undefined') {
-                    window.location.href = `/tasks/${task.id}`
-                  }
-                }}
+                onClick={() => router.push(`/tasks/${task.id}`)}
               >
                 Details
               </Button>

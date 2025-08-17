@@ -351,6 +351,10 @@ def get_task(
     for key in tasks.columns.keys():
         task_dict[key] = getattr(result, key)
     
+    # Set updated_at to created_at if it's None to ensure schema validation passes
+    if task_dict["updated_at"] is None:
+        task_dict["updated_at"] = task_dict["created_at"]
+    
     # Add the joined names
     if result.assigned_to_first_name and result.assigned_to_last_name:
         task_dict["assigned_to_name"] = f"{result.assigned_to_first_name} {result.assigned_to_last_name}"
@@ -375,6 +379,7 @@ def get_task(
             task_dict["assigned_to_department_name"] = dept_result.name
     
     return task_dict
+
 
 @router.post("/", response_model=schemas.TaskWithNames)
 def create_task(
