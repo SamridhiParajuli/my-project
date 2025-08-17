@@ -382,6 +382,9 @@ def create_task(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_active_user)
 ):
+    # Get current datetime to use for created_at and updated_at
+    current_time = datetime.now()
+    
     new_task = {
         "title": task.title,
         "description": task.description,
@@ -392,17 +395,68 @@ def create_task(
         "is_urgent": task.is_urgent,
         "due_date": task.due_date,
         "status": task.status,
-        "is_completed": True if task.status == "completed" else False
+        "is_completed": True if task.status == "completed" else False,
+        "created_at": current_time,
+        "updated_at": current_time
     }
     
+    # Create the insert statement
     insert_stmt = insert(tasks).values(**new_task)
     result = db.execute(insert_stmt)
     db.commit()
     
     task_id = result.inserted_primary_key[0]
     
-    # Use the get_task endpoint to fetch the task with names
-    return get_task(task_id, db, current_user)
+    # Instead of using get_task, directly fetch the task with a full join
+    query = select(
+        tasks,
+        employees.c.first_name.label("assigned_to_first_name"),
+        employees.c.last_name.label("assigned_to_last_name"),
+        departments.c.name.label("department_name")
+    ).select_from(
+        tasks.outerjoin(
+            employees, tasks.c.assigned_to == employees.c.id
+        ).outerjoin(
+            departments, tasks.c.department_id == departments.c.id
+        )
+    ).where(tasks.c.id == task_id)
+    
+    result = db.execute(query).fetchone()
+    
+    # Convert SQLAlchemy row to dict with explicit handling for created_at and updated_at
+    task_dict = {}
+    for key in tasks.columns.keys():
+        value = getattr(result, key)
+        # If created_at or updated_at is None, use current_time
+        if (key == 'created_at' or key == 'updated_at') and value is None:
+            task_dict[key] = current_time
+        else:
+            task_dict[key] = value
+    
+    # Add the joined names
+    if result.assigned_to_first_name and result.assigned_to_last_name:
+        task_dict["assigned_to_name"] = f"{result.assigned_to_first_name} {result.assigned_to_last_name}"
+    task_dict["department_name"] = result.department_name
+    
+    # Get assigned_by name
+    if task_dict["assigned_by"]:
+        assigned_by_query = select(employees.c.first_name, employees.c.last_name).where(
+            employees.c.id == task_dict["assigned_by"]
+        )
+        assigned_by_result = db.execute(assigned_by_query).fetchone()
+        if assigned_by_result:
+            task_dict["assigned_by_name"] = f"{assigned_by_result.first_name} {assigned_by_result.last_name}"
+    
+    # Get assigned_to_department name if present
+    if task_dict.get("assigned_to_department"):
+        dept_query = select(departments.c.name).where(
+            departments.c.id == task_dict["assigned_to_department"]
+        )
+        dept_result = db.execute(dept_query).fetchone()
+        if dept_result:
+            task_dict["assigned_to_department_name"] = dept_result.name
+    
+    return task_dict
 
 @router.put("/{task_id}", response_model=schemas.TaskWithNames)
 def update_task(
