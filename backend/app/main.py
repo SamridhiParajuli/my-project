@@ -8,8 +8,6 @@ from dotenv import load_dotenv
 # Import your routers
 from app.routers import tasks, users, training, announcements, auth, complaints, departments, employees, equipment, inventory, permissions, preorders, temperature, reminders
 
-
-
 # Load environment variables
 load_dotenv()
 
@@ -23,15 +21,37 @@ app = FastAPI(
     redirect_slashes=False
 )
 
-# Configure CORS
-origins = ["*"]
+# Configure CORS - FIXED VERSION
+origins = [
+    "http://localhost:3000",  # Local development
+    "http://localhost:3001",  # Alternative local port
+    "https://summerhill.up.railway.app",  # Production frontend
+    "https://summerhill-frontend.up.railway.app",  # Alternative production URL
+]
+
+# Get environment variable for additional origins if needed
+additional_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
+if additional_origins and additional_origins[0]:  # Check if not empty
+    origins.extend([origin.strip() for origin in additional_origins if origin.strip()])
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=origins,  # ✅ Explicit origins instead of "*"
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=[
+        "Accept",
+        "Accept-Language", 
+        "Content-Language",
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Origin",
+        "Access-Control-Request-Method",
+        "Access-Control-Request-Headers",
+    ],
+    expose_headers=["*"],
+    max_age=86400,  # Cache preflight requests for 24 hours
 )
 
 # Include all routers
