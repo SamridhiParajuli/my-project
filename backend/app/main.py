@@ -25,8 +25,8 @@ app = FastAPI(
 origins = [
     "http://localhost:3000",  # Local development
     "http://localhost:3001",  # Alternative local port
-    "https://summerhill.up.railway.app/",  # Production frontend
-    "https://summerhill-frontend.up.railway.app/",  # Alternative production URL
+    "https://summerhill.up.railway.app",  # Production frontend
+    "https://summerhill-frontend.up.railway.app",  # Alternative production URL
 ]
 
 # Get environment variable for additional origins if needed
