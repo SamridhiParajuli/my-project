@@ -18,7 +18,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url=None,  # Disable default docs
     redoc_url=None,  # Disable default redoc
-    redirect_slashes=False
+    # redirect_slashes=False
 )
 
 # Configure CORS - FIXED VERSION
@@ -38,18 +38,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,  # ✅ Explicit origins instead of "*"
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=[
-        "Accept",
-        "Accept-Language", 
-        "Content-Language",
-        "Content-Type",
-        "Authorization",
-        "X-Requested-With",
-        "Origin",
-        "Access-Control-Request-Method",
-        "Access-Control-Request-Headers",
-    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
     expose_headers=["*"],
     max_age=86400,  # Cache preflight requests for 24 hours
 )
