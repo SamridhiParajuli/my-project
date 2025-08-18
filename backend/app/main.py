@@ -20,6 +20,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url=None,  # Disable default docs
     redoc_url=None,  # Disable default redoc
+    redirect_slashes=False
 )
 
 # Configure CORS
