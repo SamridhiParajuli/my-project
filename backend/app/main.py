@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 
 # Import your routers
-from app.routers import tasks, users, training, announcements, auth, complaints, departments, employees, equipment, inventory, permissions, preorders, temperature
+from app.routers import tasks, users, training, announcements, auth, complaints, departments, employees, equipment, inventory, permissions, preorders, temperature, reminders
 
 
 
@@ -48,6 +48,7 @@ app.include_router(inventory.router)
 app.include_router(equipment.router)
 app.include_router(temperature.router)
 app.include_router(training.router)
+app.include_router(reminders.router)
 
 # Custom OpenAPI and documentation endpoints
 @app.get("/docs", include_in_schema=False)

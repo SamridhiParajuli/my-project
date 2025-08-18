@@ -596,3 +596,33 @@ class PaginatedResponse(BaseModel):
     items: List[Any]
     pagination: PaginationMeta
     sort: SortInfo
+
+
+# Reminder Schemas
+class ReminderBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+    reminder_date: datetime
+    priority: str = "medium"  # low, medium, high
+    is_completed: bool = False
+    repeat_type: Optional[str] = "none"  # none, daily, weekly, monthly
+
+class ReminderCreate(ReminderBase):
+    pass
+
+class ReminderUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    reminder_date: Optional[datetime] = None
+    priority: Optional[str] = None
+    is_completed: Optional[bool] = None
+    repeat_type: Optional[str] = None
+
+class Reminder(ReminderBase):
+    id: int
+    user_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True

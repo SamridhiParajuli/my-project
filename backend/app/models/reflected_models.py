@@ -1,4 +1,5 @@
-from sqlalchemy import MetaData
+from sqlalchemy import MetaData, Table, Column, Integer, String, DateTime, Boolean, ForeignKey, Text, Float, Date
+from sqlalchemy.sql import func
 from ..database.database import engine
 
 # Create metadata object
@@ -6,6 +7,26 @@ metadata = MetaData()
 
 # Reflect all tables from the database
 metadata.reflect(bind=engine)
+
+# Define reminders table if it doesn't exist yet
+if 'reminders' not in metadata.tables:
+    reminders = Table(
+        'reminders',
+        metadata,
+        Column('id', Integer, primary_key=True, autoincrement=True),
+        Column('user_id', Integer, ForeignKey('users.id'), nullable=False),
+        Column('title', String(255), nullable=False),
+        Column('description', Text, nullable=True),
+        Column('reminder_date', DateTime, nullable=False),
+        Column('priority', String(50), default='medium'),
+        Column('is_completed', Boolean, default=False),
+        Column('repeat_type', String(50), default='none'),
+        Column('created_at', DateTime, default=func.now()),
+        Column('updated_at', DateTime, default=func.now(), onupdate=func.now()),
+    )
+    metadata.create_all(bind=engine, tables=[reminders])
+else:
+    reminders = metadata.tables['reminders']
 
 # Access all tables from your database
 departments = metadata.tables['departments']
@@ -29,3 +50,6 @@ temperature_monitoring_points = metadata.tables['temperature_monitoring_points']
 training_types = metadata.tables['training_types']
 employee_training_records = metadata.tables['employee_training_records']
 training_requirements = metadata.tables['training_requirements']
+# Make sure we reference reminders here
+if 'reminders' in metadata.tables:
+    reminders = metadata.tables['reminders']
