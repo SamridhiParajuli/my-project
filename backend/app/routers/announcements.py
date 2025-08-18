@@ -1,7 +1,7 @@
 # app/routers/announcements.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import select, insert, update, delete, func, or_
+from sqlalchemy import select, insert, update, delete, func, or_, cast, DateTime
 from typing import List, Optional, Dict
 from datetime import datetime, timedelta
 from ..database.database import get_db
@@ -63,9 +63,9 @@ def get_announcements(
     # Only return non-expired announcements or ones with no expiration
     current_time = datetime.now()
     query = query.where(
-        (announcements.c.expires_at > current_time) | 
-        (announcements.c.expires_at.is_(None))
-    )
+    (announcements.c.expires_at.cast(DateTime) > current_time) | 
+    (announcements.c.expires_at.is_(None))
+)
     
     # Add sorting
     if hasattr(announcements.c, sort):
