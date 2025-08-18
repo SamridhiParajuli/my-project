@@ -18,7 +18,7 @@ router = APIRouter(
     tags=["permissions"],
 )
 
-@router.get("/", response_model=Dict)
+@router.get("", response_model=Dict)
 def get_permissions(
     skip: int = 0, 
     limit: int = 20, 
@@ -121,7 +121,7 @@ def get_permission(
         raise_api_error(404, "Permission not found")
     return row_to_dict(result)
 
-@router.post("/", response_model=dict)
+@router.post("", response_model=dict)
 def create_permission(
     permission_data: dict,
     db: Session = Depends(get_db),

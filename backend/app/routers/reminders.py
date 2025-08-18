@@ -16,7 +16,7 @@ router = APIRouter(
     tags=["reminders"],
 )
 
-@router.get("/", response_model=Dict)
+@router.get("", response_model=Dict)
 def get_reminders(
     skip: int = 0, 
     limit: int = 100, 
@@ -165,7 +165,7 @@ def get_reminder(
         
     return row_to_dict(result)
 
-@router.post("/", response_model=schemas.Reminder)
+@router.post("", response_model=schemas.Reminder)
 def create_reminder(
     reminder: schemas.ReminderCreate, 
     db: Session = Depends(get_db),

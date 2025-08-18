@@ -18,7 +18,7 @@ router = APIRouter(
     tags=["departments"],
 )
 
-@router.get("/", response_model=Dict)
+@router.get("", response_model=Dict)
 def get_departments(
     skip: int = 0, 
     limit: int = 20, 
@@ -94,7 +94,7 @@ def get_department(
         raise_api_error(404, "Department not found")
     return row_to_dict(result)
 
-@router.post("/", response_model=schemas.Department)
+@router.post("", response_model=schemas.Department)
 def create_department(
     department: schemas.DepartmentCreate, 
     db: Session = Depends(get_db),

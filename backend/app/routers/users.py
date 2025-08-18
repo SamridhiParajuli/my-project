@@ -18,7 +18,7 @@ router = APIRouter(
     tags=["users"],
 )
 
-@router.get("/", response_model=Dict)
+@router.get("", response_model=Dict)
 def get_users(
     skip: int = 0, 
     limit: int = 20,
@@ -111,7 +111,7 @@ def get_user(
     
     return user_data
 
-@router.post("/", response_model=schemas.User)
+@router.post("", response_model=schemas.User)
 def create_user(
     user: schemas.UserCreate, 
     db: Session = Depends(get_db),

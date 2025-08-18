@@ -18,7 +18,7 @@ router = APIRouter(
 )
 
 # Equipment endpoints
-@router.get("/", response_model=Dict)
+@router.get("", response_model=Dict)
 def get_equipment(
     skip: int = 0, 
     limit: int = 20, 
@@ -238,7 +238,7 @@ def get_equipment_by_id(
         raise_api_error(404, "Equipment not found")
     return row_to_dict(result)
 
-@router.post("/", response_model=schemas.Equipment)
+@router.post("", response_model=schemas.Equipment)
 def create_equipment(
     equipment_data: schemas.EquipmentCreate, 
     db: Session = Depends(get_db),

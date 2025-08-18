@@ -17,7 +17,7 @@ router = APIRouter(
     tags=["pre-orders"],
 )
 
-@router.get("/", response_model=Dict)
+@router.get("", response_model=Dict)
 def get_preorders(
     skip: int = 0, 
     limit: int = 20, 
@@ -402,7 +402,7 @@ def get_preorder(
     
     return preorder_dict
 
-@router.post("/", response_model=schemas.PreOrderWithNames)
+@router.post("", response_model=schemas.PreOrderWithNames)
 def create_preorder(
     preorder: schemas.PreOrderCreate, 
     db: Session = Depends(get_db),

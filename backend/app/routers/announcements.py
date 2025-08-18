@@ -17,7 +17,7 @@ router = APIRouter(
     tags=["announcements"],
 )
 
-@router.get("/", response_model=Dict)
+@router.get("", response_model=Dict)
 def get_announcements(
     skip: int = 0, 
     limit: int = 20, 
@@ -228,7 +228,7 @@ def get_announcement(
         raise_api_error(404, "Announcement not found")
     return row_to_dict(result)
 
-@router.post("/", response_model=schemas.Announcement)
+@router.post("", response_model=schemas.Announcement)
 def create_announcement(
     announcement_data: schemas.AnnouncementCreate, 
     db: Session = Depends(get_db),

@@ -19,7 +19,7 @@ router = APIRouter(
     tags=["employees"],
 )
 
-@router.get("/", response_model=Dict)
+@router.get("", response_model=Dict)
 def get_employees(
     skip: int = 0, 
     limit: int = 20, 
@@ -91,7 +91,7 @@ def get_employee(
         raise_api_error(404, "Employee not found")
     return row_to_dict(result)
 
-@router.post("/", response_model=schemas.Employee)
+@router.post("", response_model=schemas.Employee)
 def create_employee(
     employee: schemas.EmployeeCreate, 
     db: Session = Depends(get_db),

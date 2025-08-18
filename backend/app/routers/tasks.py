@@ -17,7 +17,7 @@ router = APIRouter(
     tags=["tasks"],
 )
 
-@router.get("/", response_model=Dict)
+@router.get("", response_model=Dict)
 def get_tasks(
     skip: int = 0, 
     limit: int = 20, 
@@ -381,7 +381,7 @@ def get_task(
     return task_dict
 
 
-@router.post("/", response_model=schemas.TaskWithNames)
+@router.post("", response_model=schemas.TaskWithNames)
 def create_task(
     task: schemas.TaskCreate, 
     db: Session = Depends(get_db),

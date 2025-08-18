@@ -17,7 +17,7 @@ router = APIRouter(
     tags=["customer complaints"],
 )
 
-@router.get("/", response_model=Dict)
+@router.get("", response_model=Dict)
 def get_complaints(
     skip: int = 0, 
     limit: int = 20, 
@@ -414,7 +414,7 @@ def get_complaint(
     
     return complaint_dict
 
-@router.post("/", response_model=schemas.ComplaintWithNames)
+@router.post("", response_model=schemas.ComplaintWithNames)
 def create_complaint(
     complaint: schemas.ComplaintCreate, 
     db: Session = Depends(get_db),
