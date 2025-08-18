@@ -18,10 +18,9 @@ app = FastAPI(
     version="1.0.0",
     docs_url=None,  # Disable default docs
     redoc_url=None,  # Disable default redoc
-    # redirect_slashes=False
 )
 
-# Configure CORS - FIXED VERSION
+# Configure CORS
 origins = [
     "http://localhost:3000",  # Local development
     "http://localhost:3001",  # Alternative local port
@@ -36,13 +35,30 @@ if additional_origins and additional_origins[0]:  # Check if not empty
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # ✅ Explicit origins instead of "*"
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
-    max_age=86400,  # Cache preflight requests for 24 hours
+    max_age=86400,
 )
+
+# ✅ Ensure CORS headers are present even on errors
+@app.middleware("http")
+async def ensure_cors_headers(request, call_next):
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(
+            status_code=500,
+            content={"detail": str(exc)},
+        )
+    origin = request.headers.get("origin")
+    if origin in origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
 
 # Include all routers
 app.include_router(auth.router)
@@ -59,6 +75,10 @@ app.include_router(equipment.router)
 app.include_router(temperature.router)
 app.include_router(training.router)
 app.include_router(reminders.router)
+
+@app.get("/cors-test")
+async def cors_test():
+    return {"ok": True}
 
 # Custom OpenAPI and documentation endpoints
 @app.get("/docs", include_in_schema=False)
