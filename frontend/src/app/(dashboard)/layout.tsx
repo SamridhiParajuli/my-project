@@ -11,7 +11,8 @@ import {
   ChevronDown, ChevronRight,
   ShoppingBag, Clipboard, MessageSquare,
   Building, User, Shield, BookOpen,
-  Thermometer, PencilRuler, ShoppingCart, Home
+  Thermometer, PencilRuler, ShoppingCart, Home,
+  Clock
 } from 'lucide-react';
 
 // Group sidebar items into categories
@@ -30,6 +31,7 @@ const sidebarGroups = [
       { href: "/preorders", icon: <ShoppingCart size={18} />, label: "Pre-Orders" },
       { href: "/temperature", icon: <Thermometer size={18} />, label: "Temperature" },
       { href: "/equipment", icon: <PencilRuler size={18} />, label: "Equipment" },
+      { href: "/reminders", icon: <Clock size={18} />, label: "Reminders" },
     ]
   },
   {
